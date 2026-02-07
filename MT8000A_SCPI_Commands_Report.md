@@ -109,8 +109,8 @@ Commands were extracted via exhaustive pattern-based searching of the 141,000+ l
 |---|---------|-------------------|---------------|-------------|
 | 54 | `ULWAVEFORM` | `ULWAVEFORM {cc}.{DFTOFDM\|CPOFDM}` | 15670-32340 | Set UL waveform type |
 | 55 | `ULRMC_RB` | `ULRMC_RB [cc,]{num_RBs}` | 15680, 32341, 32614 | Set UL RMC Number of RBs |
-| 56 | `ULRMC RB` | `ULRMC RB {cc}.{num_RBs}` | 15680 | Alternate form (space-separated) |
-| 57 | `ULRB START` | `ULRB START [cc,]{start_RB}` | 15681-116635 | Set UL starting RB position |
+| 56 | `ULRMC_RB` | `ULRMC_RB {cc}.{num_RBs}` | 15680 | Alternate form (underscore-separated) |
+| 57 | `ULRB_START` | `ULRB_START [cc,]{start_RB}` | 15681-116635 | Set UL starting RB position |
 | 58 | `ULRBSTART` | `ULRBSTART [cc,]{start_RB}` | ~15797+ | Alternate form (no space) |
 | 59 | `ULRBSTARTSCC1` | `ULRBSTARTSCC1 {start_RB}` | ~34520+ | Set UL starting RB for SCC1 (legacy form) |
 | 60 | `ULMCS_TABLE` | `ULMCS_TABLE {cc},{64QAM\|256QAM}` | 15740, 32345 | Set UL MCS Index Table |
@@ -119,11 +119,11 @@ Commands were extracted via exhaustive pattern-based searching of the 141,000+ l
 | 63 | `ULRMC_MOD_SCC1` | `ULRMC_MOD_SCC1 {QPSK}` | 34525, 41355 | Set UL RMC modulation for SCC1 |
 | 64 | `PI2BPSK` | `PI2BPSK {ON\|OFF}` | (referenced ~32350) | Enable π/2-BPSK modulation |
 | 65 | `DLRMC_RB` | `DLRMC_RB [cc,]{num_RBs}` | 15772, 32406, 32620 | Set DL RMC Number of RBs |
-| 66 | `DLRMC RB` | `DLRMC RB {cc},{num_RBs}` | 15772 | Alternate form (space-separated) |
-| 67 | `DLRB START` | `DLRB START [cc,]{start_RB}` | 32408-116635 | Set DL starting RB position |
+| 66 | `DLRMC_RB` | `DLRMC_RB {cc},{num_RBs}` | 15772 | Alternate form (underscore-separated) |
+| 67 | `DLRB_START` | `DLRB_START [cc,]{start_RB}` | 32408-116635 | Set DL starting RB position |
 | 68 | `DLRBSTART` | `DLRBSTART [cc,]{start_RB}` | ~15773+ | Alternate form (no space) |
 | 69 | `DLMCS_TABLE` | `DLMCS_TABLE {cc},{64QAM\|256QAM}` | 32410, 33435 | Set DL MCS Index Table |
-| 70 | `DLMCS TABLE` | `DLMCS TABLE {cc}.{64QAM}` | ~9000+ | Alternate form (space-separated) |
+| 70 | `DLMCS_TABLE` | `DLMCS_TABLE {cc}.{64QAM}` | ~9000+ | Alternate form (underscore-separated) |
 | 71 | `DLIMCS` | `DLIMCS {cc},{index}` | 15782, 32412, 32987 | Set DL MCS Index |
 | 72 | `SCHEDULING` | `SCHEDULING {STATIC\|USER}` | 5387, 11071-136960 | Set scheduling mode |
 
@@ -150,22 +150,22 @@ Commands were extracted via exhaustive pattern-based searching of the 141,000+ l
 
 | # | Command | Syntax / Arguments | Approx. Lines | Description |
 |---|---------|-------------------|---------------|-------------|
-| 82 | `PWR MEAS` | `PWR MEAS {ON\|OFF}` | 15616, 32912-42470 | Enable/disable Power measurement |
+| 82 | `PWR_MEAS` | `PWR_MEAS {ON\|OFF}` | 15616, 32912-42470 | Enable/disable Power measurement |
 | 83 | `PWRMEAS` | `PWRMEAS {ON}` | 56274-115710 | Enable Power measurement (no-space variant) |
 | 84 | `PWR_AVG` | `PWR_AVG {1\|n}` | 15624-78640 | Set power measurement averaging count |
 | 85 | `TPUTMEAS` | `TPUTMEAS {ON}` | 77790, 80362 | Enable Throughput measurement |
-| 86 | `TPUT MEAS` | `TPUT MEAS {ON\|OFF}` | 15626, 77800, 78266 | Enable/disable Throughput measurement |
+| 86 | `TPUT_MEAS` | `TPUT_MEAS {ON\|OFF}` | 15626, 77800, 78266 | Enable/disable Throughput measurement |
 | 87 | `SEMMEAS` | `SEMMEAS {ON}` | 90290, 102329 | Enable SEM measurement |
-| 88 | `SEM MEAS` | `SEM MEAS {ON}` | 74108-76831 | Enable SEM measurement (space variant) |
-| 89 | `ACLR MEAS` | `ACLR MEAS {ON}` | 75538, 77315 | Enable ACLR measurement |
-| 90 | `EARLY DECISION` | `EARLY DECISION {ON\|OFF}` | 15628, 77802, 78268 | Enable/disable throughput early decision |
+| 88 | `SEM_MEAS` | `SEM_MEAS {ON}` | 74108-76831 | Enable SEM measurement (underscore variant) |
+| 89 | `ACLR_MEAS` | `ACLR_MEAS {ON}` | 75538, 77315 | Enable ACLR measurement |
+| 90 | `EARLY_DECISION` | `EARLY_DECISION {ON\|OFF}` | 15628, 77802, 78268 | Enable/disable throughput early decision |
 
 ## 12. Throughput Configuration
 
 | # | Command | Syntax / Arguments | Approx. Lines | Description |
 |---|---------|-------------------|---------------|-------------|
-| 91 | `TPUT SAMPLE` | `TPUT SAMPLE {count}` | 15632, 16034, 78270 | Set throughput sample count |
-| 92 | `TPUT UNIT` | `TPUT UNIT {BLOCK}` | 16030 | Set throughput unit |
+| 91 | `TPUT_SAMPLE` | `TPUT_SAMPLE {count}` | 15632, 16034, 78270 | Set throughput sample count |
+| 92 | `TPUT_UNIT` | `TPUT_UNIT {BLOCK}` | 16030 | Set throughput unit |
 
 ## 13. Measurement Result Queries
 
@@ -192,14 +192,14 @@ Commands were extracted via exhaustive pattern-based searching of the 141,000+ l
 | 111 | `TPUT_BLERCNTDTX?` | `TPUT_BLERCNTDTX? {cc}` | 16068 | Query BLER DTX count |
 | 112 | `TPUT_BLER?` | `TPUT_BLER? {cc}` | 16069 | Query BLER ratio per carrier |
 | 113 | `TPUT_TRANSBLOCK?` | `TPUT_TRANSBLOCK? {cc}` | 16070 | Query transport block count |
-| 114 | `TPUT_TRANSFRAME?` | `TPUT TRANSFRAME? {cc}` | 16071 | Query transport frame count |
+| 114 | `TPUT_TRANSFRAME?` | `TPUT_TRANSFRAME? {cc}` | 16071 | Query transport frame count |
 | 115 | `TPUT_BLERCNT_TOTAL_FR1?` | `TPUT_BLERCNT_TOTAL_FR1?` | 16075 | Query total FR1 BLER count |
 | 116 | `TPUT_BLERCNTNACK_TOTAL_FR1?` | `TPUT_BLERCNTNACK_TOTAL_FR1?` | 16076 | Query total FR1 BLER NACK count |
 | 117 | `TPUT_BLERCNTDTX_TOTAL_FR1?` | `TPUT_BLERCNTDTX_TOTAL_FR1?` | 16077 | Query total FR1 BLER DTX count |
 | 118 | `TPUT_BLER_TOTAL_FR1?` | `TPUT_BLER_TOTAL_FR1?` | 16078 | Query total FR1 BLER ratio |
 | 119 | `TPUT_TRANSBLOCK_TOTAL_FR1?` | `TPUT_TRANSBLOCK_TOTAL_FR1?` | 16079 | Query total FR1 transport blocks |
-| 120 | `TPUT_TRANSFRAME_TOTAL_FR1?` | `TPUT TRANSFRAME TOTAL FR1?` | 16080 | Query total FR1 transport frames |
-| 121 | `TPUT_TRANSFRAME_TOTAL_FR2?` | `TPUT TRANSFRAME TOTAL FR2?` | 16089 | Query total FR2 transport frames |
+| 120 | `TPUT_TRANSFRAME_TOTAL_FR1?` | `TPUT_TRANSFRAME_TOTAL_FR1?` | 16080 | Query total FR1 transport frames |
+| 121 | `TPUT_TRANSFRAME_TOTAL_FR2?` | `TPUT_TRANSFRAME_TOTAL_FR2?` | 16089 | Query total FR2 transport frames |
 | 122 | `EIS?` | `EIS?` | 16055 | Query EIS measurement result |
 
 ## 14. Power Template & Time Mask
