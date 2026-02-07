@@ -988,7 +988,7 @@ class MT8000A(InstrumentBase):
 
     def set_aclr_meas(self, on: bool) -> None:
         """Set ACLR measurement avg/count."""
-        self.write(f"ACLR {'ON' if on else 'OFF'}")
+        self.write(f"ACLR_MEAS {'ON' if on else 'OFF'}")
 
     def set_aclr_avg(self, avg: int) -> None:
         """Set ACLR averaging count."""
