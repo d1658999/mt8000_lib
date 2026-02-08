@@ -15,20 +15,23 @@ Usage:
     mt = MT8000A(inst)
 
     # Example: SA call setup on band 78
-    mt.preset_sa()
+    inst.write(mt.preset_sa())
+    inst.query("*OPC?")  # Note: opc moved to MT8000A and MT8821C
     mt.set_ran_operation("SA")
     mt.set_frame_type("TDD")
     mt.set_band("PCC", 78)
     mt.set_dl_scs("PCC", "30KHZ")
     mt.set_dl_bandwidth("PCC", "100MHZ")
-    mt.call_sa()
+    inst.write(mt.call_sa())
     mt.wait_for_call_connected()
 
     # Example: Power measurement
-    mt.all_meas_items_off()
+    inst.write(mt.all_meas_items_off())
+    inst.query("*OPC?")
     mt.set_power_meas(True)
-    mt.sweep()
-    result = mt.query_power()
+    inst.write(mt.sweep())
+    inst.query("*OPC?")
+    result = inst.query(mt.query_power())
 """
 
 from __future__ import annotations
@@ -40,10 +43,18 @@ from typing import Optional, Union
 logger = logging.getLogger(__name__)
 
 
-class InstrumentBase:
-    """Thin wrapper around a VISA instrument resource for SCPI communication."""
+class MT8000A:
+    """
+    Anritsu MT8000A NR Test Station remote commands.
 
-    def __init__(self, visa_resource, timeout_ms: int = 30000):
+    Commands are grouped by functional category for clarity.
+    Most setter methods accept carrier component arguments like 'PCC', 'SCC1', etc.
+    """
+    # =========================================================================
+    # Self test write and query commands
+    # =========================================================================
+    
+    def __init__(self, visa_resource, timeout_ms: int = 10000):
         """
         Parameters
         ----------
@@ -67,1120 +78,1116 @@ class InstrumentBase:
         logger.debug("RESP:  %s", resp)
         return resp
 
-    def opc(self) -> str:
-        """Wait for operation complete (*OPC?)."""
-        return self.query("*OPC?")
-
-    def close(self) -> None:
+    def close(self) -> None:  
         """Close the VISA resource."""
         self._inst.close()
-
-
-class MT8000A(InstrumentBase):
-    """
-    Anritsu MT8000A NR Test Station remote commands.
-
-    Commands are grouped by functional category for clarity.
-    Most setter methods accept carrier component arguments like 'PCC', 'SCC1', etc.
-    """
 
     # =========================================================================
     # System / Initialization
     # =========================================================================
-    def preset(self) -> None:
+    def opc(self) -> str:
+        """Wait for operation complete (*OPC?)."""
+        return "*OPC?"
+    
+    def preset(self) -> str:
         """Initialize all parameters (NSA mode)."""
-        self.write("PRESET")
-        self.opc()
+        # Note: Consider adding *OPC? after this command.
+        return "PRESET"
 
-    def preset_sa(self) -> None:
+    def preset_sa(self) -> str:
         """Initialize all parameters for SA mode."""
-        self.write("PRESET_SA")
-        self.opc()
+        # Note: Consider adding *OPC? after this command.
+        return "PRESET_SA"
 
-    def set_ran_operation(self, mode: str) -> None:
+    def set_ran_operation(self, mode: str) -> str:
         """Set RAN operation mode. mode: 'SA' | 'NSA'"""
-        self.write(f"RANOP {mode}")
+        return f"RANOP {mode}"
 
-    def set_remote_destination(self, dest: str) -> None:
+    def set_remote_destination(self, dest: str) -> str:
         """
         Switch remote command destination.
         dest: '8000A' | '8821C' | 'LTE' | 'NR'
         """
-        self.write(f"REM_DEST {dest}")
+        return f"REM_DEST {dest}"
 
-    def set_test_interface(self, slot: str, interface: str = "ARGV") -> None:
+    def set_test_interface(self, slot: str, interface: str = "ARGV") -> str:
         """Set test interface. e.g. TESTIF SLOT1,ARGV"""
-        self.write(f"TESTIF {slot},{interface}")
+        return f"TESTIF {slot},{interface}"
 
-    def set_test_slot(self, slot: str, cc: Optional[str] = None) -> None:
+    def set_test_slot(self, slot: str, cc: Optional[str] = None) -> str:
         """Set test slot. e.g. TESTSLOT SLOT1 or TESTSLOT PCC,SLOT1"""
         if cc:
-            self.write(f"TESTSLOT {cc},{slot}")
+            return f"TESTSLOT {cc},{slot}"
         else:
-            self.write(f"TESTSLOT {slot}")
+            return f"TESTSLOT {slot}"
 
-    def set_system_select(self, system_num: int) -> None:
+    def set_system_select(self, system_num: int) -> str:
         """Select system number for multi-system config. e.g. SYSSEL 1"""
-        self.write(f"SYSSEL {system_num}")
+        return f"SYSSEL {system_num}"
 
     def query_system_select(self, system_num: Optional[int] = None) -> str:
         """Query system selection."""
         if system_num is not None:
-            return self.query(f"SYSSEL? {system_num}")
-        return self.query("SYSSEL?")
+            return f"SYSSEL? {system_num}"
+        return "SYSSEL?"
 
     def query_num_mt8000a(self) -> str:
         """Query number of MT8000A units (2-box config)."""
-        return self.query("NUMOFMT8000A?")
+        return "NUMOFMT8000A?"
 
     # =========================================================================
     # Call Processing / Connection Control
     # =========================================================================
-    def set_call_processing(self, on_off: bool) -> None:
+    def set_call_processing(self, on_off: bool) -> str:
         """Enable/disable call processing."""
-        self.write(f"CALLPROC {'ON' if on_off else 'OFF'}")
+        return f"CALLPROC {'ON' if on_off else 'OFF'}"
 
-    def call_sa(self) -> None:
+    def call_sa(self) -> str:
         """Initiate SA call connection."""
-        self.write("CALLSA")
+        return "CALLSA"
 
-    def call_disconnect(self) -> None:
+    def call_disconnect(self) -> str:
         """Disconnect the call (SA)."""
-        self.write("CALLSO")
+        return "CALLSO"
 
     def query_call_status(self) -> str:
         """Query current call processing status."""
-        return self.query("CALLSTAT?")
+        return "CALLSTAT?"
 
     def query_connection_status(self) -> str:
         """Query connection status."""
-        return self.query("CONNECT?")
+        return "CONNECT?"
 
-    def wait_for_call_connected(self, timeout_s: float = 60, poll_interval_s: float = 1) -> bool:
-        """
-        Poll CALLSTAT? until connected or timeout.
-        Returns True if connected, False on timeout.
-        """
-        start = time.time()
-        while time.time() - start < timeout_s:
-            status = self.query_call_status()
-            if "CONNECTED" in status.upper() or status == "6":
-                return True
-            time.sleep(poll_interval_s)
-        logger.warning("Call connection timed out after %ss", timeout_s)
-        return False
+    # TODO: implement higer-level call control methods that combine commands and polling, e.g. wait_for_call_connected()
+    # def wait_for_call_connected(self, timeout_s: float = 60, poll_interval_s: float = 1) -> bool:
+    #     """
+    #     Poll CALLSTAT? until connected or timeout.
+    #     Returns True if connected, False on timeout.
+    #     """
+    #     start = time.time()
+    #     while time.time() - start < timeout_s:
+    #         status = self.query(self.query_call_status())
+    #         if "CONNECTED" in status.upper() or status == "6":
+    #             return True
+    #         time.sleep(poll_interval_s)
+    #     logger.warning("Call connection timed out after %ss", timeout_s)
+    #     return False
 
     # =========================================================================
     # SIM / Authentication
     # =========================================================================
-    def set_sim_model(self, model: str) -> None:
+    def set_sim_model(self, model: str) -> str:
         """Set SIM card model number. e.g. SIMMODELNUM P0135"""
-        self.write(f"SIMMODELNUM {model}")
+        return f"SIMMODELNUM {model}"
 
-    def set_integrity(self, algorithm: str) -> None:
+    def set_integrity(self, algorithm: str) -> str:
         """Set integrity protection algorithm. e.g. INTEGRITY SNOW3G"""
-        self.write(f"INTEGRITY {algorithm}")
+        return f"INTEGRITY {algorithm}"
 
     # =========================================================================
     # Frame Structure / Duplex Mode
     # =========================================================================
-    def set_frame_type(self, mode: str, cc: Optional[str] = None) -> None:
+    def set_frame_type(self, mode: str, cc: Optional[str] = None) -> str:
         """
         Set duplex mode. mode: 'TDD' | 'FDD'
         cc: carrier component, e.g. 'SCC1'. If None, applies to PCC.
         """
         if cc:
-            self.write(f"FRAMETYPE {cc},{mode}")
+            return f"FRAMETYPE {cc},{mode}"
         else:
-            self.write(f"FRAMETYPE {mode}")
+            return f"FRAMETYPE {mode}"
 
-    def set_channel_setting_mode(self, mode: str = "LOWESTGSCN") -> None:
+    def set_channel_setting_mode(self, mode: str = "LOWESTGSCN") -> str:
         """Set channel setting mode. Default: LOWESTGSCN"""
-        self.write(f"CHANSETMODE {mode}")
+        return f"CHANSETMODE {mode}"
 
-    def set_common_setting_mode(self, mode: str) -> None:
+    def set_common_setting_mode(self, mode: str) -> str:
         """Set common setting mode."""
-        self.write(f"COMMONSETMODE {mode}")
+        return f"COMMONSETMODE {mode}"
 
     # =========================================================================
     # Band / Frequency Configuration
     # =========================================================================
-    def set_band(self, cc: str, band: int) -> None:
+    def set_band(self, cc: str, band: int) -> str:
         """Set operation band. e.g. BAND PCC,78"""
-        self.write(f"BAND {cc},{band}")
+        return f"BAND {cc},{band}"
 
-    def set_dl_scs(self, cc: str, scs: str) -> None:
+    def set_dl_scs(self, cc: str, scs: str) -> str:
         """Set DL subcarrier spacing. e.g. DLSCS PCC,30KHZ"""
-        self.write(f"DLSCS {cc},{scs}")
+        return f"DLSCS {cc},{scs}"
 
-    def set_dl_bandwidth(self, cc: str, bw: str) -> None:
+    def set_dl_bandwidth(self, cc: str, bw: str) -> str:
         """Set DL channel bandwidth. e.g. DLBANDWIDTH PCC,100MHZ"""
-        self.write(f"DLBANDWIDTH {cc},{bw}")
+        return f"DLBANDWIDTH {cc},{bw}"
 
-    def set_dl_channel(self, cc: str, channel: int) -> None:
+    def set_dl_channel(self, cc: str, channel: int) -> str:
         """Set DL center channel (NR-ARFCN). e.g. DLCHAN PCC,623334"""
-        self.write(f"DLCHAN {cc},{channel}")
+        return f"DLCHAN {cc},{channel}"
 
-    def set_offset_carrier(self, cc: str, offset: int) -> None:
+    def set_offset_carrier(self, cc: str, offset: int) -> str:
         """Set DL OffsetToCarrier. e.g. OFFSETCARRIER PCC,0"""
-        self.write(f"OFFSETCARRIER {cc},{offset}")
+        return f"OFFSETCARRIER {cc},{offset}"
 
-    def set_ssb_channel(self, cc: str, channel: int) -> None:
+    def set_ssb_channel(self, cc: str, channel: int) -> str:
         """Set Absolute Frequency SSB. e.g. SSBCHAN PCC,620352"""
-        self.write(f"SSBCHAN {cc},{channel}")
+        return f"SSBCHAN {cc},{channel}"
 
-    def set_ssb_scs(self, cc: str, scs: str) -> None:
+    def set_ssb_scs(self, cc: str, scs: str) -> str:
         """Set SS Block Subcarrier Spacing. e.g. SSBSCS PCC,30KHZ"""
-        self.write(f"SSBSCS {cc},{scs}")
+        return f"SSBSCS {cc},{scs}"
 
-    def set_ssb_type(self, cc: str, stype: str) -> None:
+    def set_ssb_type(self, cc: str, stype: str) -> str:
         """Set SS Block Transmission Type. e.g. SSBTYPE PCC,BITMAP"""
-        self.write(f"SSBTYPE {cc},{stype}")
+        return f"SSBTYPE {cc},{stype}"
 
-    def set_ssb_position(self, cc: str, bitmap: str) -> None:
+    def set_ssb_position(self, cc: str, bitmap: str) -> str:
         """Set SS Block Position Bitmap. e.g. SSBPOS PCC,40"""
-        self.write(f"SSBPOS {cc},{bitmap}")
+        return f"SSBPOS {cc},{bitmap}"
 
-    def set_ssb_period(self, cc: str, period: int) -> None:
+    def set_ssb_period(self, cc: str, period: int) -> str:
         """Set SSB Burst Periodicity (ms). e.g. SSBPERIOD PCC,10"""
-        self.write(f"SSBPERIOD {cc},{period}")
+        return f"SSBPERIOD {cc},{period}"
 
-    def set_ssb_power(self, power: float) -> None:
+    def set_ssb_power(self, power: float) -> str:
         """Set SS/PBCH Block Power. e.g. SSPBCHBLOCKPOWER -6.02"""
-        self.write(f"SSPBCHBLOCKPOWER {power}")
+        return f"SSPBCHBLOCKPOWER {power}"
 
-    def set_ul_channel(self, cc: str, channel: int) -> None:
+    def set_ul_channel(self, cc: str, channel: int) -> str:
         """Set UL center channel (NR-ARFCN). e.g. ULCHAN PCC,516582"""
-        self.write(f"ULCHAN {cc},{channel}")
+        return f"ULCHAN {cc},{channel}"
 
-    def set_ul_bandwidth(self, cc: str, bw: str) -> None:
+    def set_ul_bandwidth(self, cc: str, bw: str) -> str:
         """Set UL channel bandwidth. e.g. ULBANDWIDTH PCC,100MHZ"""
-        self.write(f"ULBANDWIDTH {cc},{bw}")
+        return f"ULBANDWIDTH {cc},{bw}"
 
-    def set_ul_offset_carrier(self, cc: str, offset: int) -> None:
+    def set_ul_offset_carrier(self, cc: str, offset: int) -> str:
         """Set UL OffsetToCarrier. e.g. ULOFFSETCARRIER PCC,0"""
-        self.write(f"ULOFFSETCARRIER {cc},{offset}")
+        return f"ULOFFSETCARRIER {cc},{offset}"
 
-    def set_cell_id(self, cc: str, cell_id: int) -> None:
+    def set_cell_id(self, cc: str, cell_id: int) -> str:
         """Set Physical Cell ID. e.g. CELLID PCC,0"""
-        self.write(f"CELLID {cc},{cell_id}")
+        return f"CELLID {cc},{cell_id}"
 
     # =========================================================================
     # TDD Configuration
     # =========================================================================
-    def set_tdd_ul_dl_config(self, cc: str, config: str) -> None:
+    def set_tdd_ul_dl_config(self, cc: str, config: str) -> str:
         """Set TDD UL/DL Configuration. e.g. TDDULDLCONF PCC,CONFIG1"""
-        self.write(f"TDDULDLCONF {cc},{config}")
+        return f"TDDULDLCONF {cc},{config}"
 
-    def set_tdd_ul_dl_config2(self, cc: str, config: str) -> None:
+    def set_tdd_ul_dl_config2(self, cc: str, config: str) -> str:
         """Set TDD UL/DL Configuration 2."""
-        self.write(f"TDDULDLCONF2 {cc},{config}")
+        return f"TDDULDLCONF2 {cc},{config}"
 
-    def set_tdd_ssf_config(self, cc: str, config: str) -> None:
+    def set_tdd_ssf_config(self, cc: str, config: str) -> str:
         """Set TDD special subframe configuration."""
-        self.write(f"TDDSSFCONF {cc},{config}")
+        return f"TDDSSFCONF {cc},{config}"
 
-    def set_dl_ul_period(self, cc: str, period: str) -> None:
+    def set_dl_ul_period(self, cc: str, period: str) -> str:
         """Set DL/UL Periodicity. e.g. DLULPERIOD PCC,5MS"""
-        self.write(f"DLULPERIOD {cc},{period}")
+        return f"DLULPERIOD {cc},{period}"
 
-    def set_dl_duration(self, cc: str, duration: int) -> None:
+    def set_dl_duration(self, cc: str, duration: int) -> str:
         """Set DL Duration (slots). e.g. DLDURATION PCC,8"""
-        self.write(f"DLDURATION {cc},{duration}")
+        return f"DLDURATION {cc},{duration}"
 
-    def set_ul_duration(self, cc: str, duration: int) -> None:
+    def set_ul_duration(self, cc: str, duration: int) -> str:
         """Set UL Duration (slots). e.g. ULDURATION PCC,2"""
-        self.write(f"ULDURATION {cc},{duration}")
+        return f"ULDURATION {cc},{duration}"
 
-    def set_dl_symbols(self, cc: str, symbols: int) -> None:
+    def set_dl_symbols(self, cc: str, symbols: int) -> str:
         """Set Common DL symbols. e.g. DLSYMBOLS PCC,6"""
-        self.write(f"DLSYMBOLS {cc},{symbols}")
+        return f"DLSYMBOLS {cc},{symbols}"
 
-    def set_ul_symbols(self, cc: str, symbols: int) -> None:
+    def set_ul_symbols(self, cc: str, symbols: int) -> str:
         """Set Common UL symbols. e.g. ULSYMBOLS PCC,4"""
-        self.write(f"ULSYMBOLS {cc},{symbols}")
+        return f"ULSYMBOLS {cc},{symbols}"
 
     # =========================================================================
     # Carrier Aggregation (CA) Configuration
     # =========================================================================
-    def set_dl_scc(self, num: int) -> None:
+    def set_dl_scc(self, num: int) -> str:
         """Set number of DL Secondary Component Carriers. e.g. DLSCC 1"""
-        self.write(f"DLSCC {num}")
+        return f"DLSCC {num}"
 
-    def set_ul_scc(self, num: int) -> None:
+    def set_ul_scc(self, num: int) -> str:
         """Set number of UL Secondary Component Carriers. e.g. ULSCC 1"""
-        self.write(f"ULSCC {num}")
+        return f"ULSCC {num}"
 
-    def set_ul_ca(self, num: int) -> None:
+    def set_ul_ca(self, num: int) -> str:
         """Set number of UL CA carriers. e.g. ULCA 2"""
-        self.write(f"ULCA {num}")
+        return f"ULCA {num}"
 
-    def set_dl_2ca(self, mode: str) -> None:
+    def set_dl_2ca(self, mode: str) -> str:
         """Configure DL 2CA mode."""
-        self.write(f"DL2CA {mode}")
+        return f"DL2CA {mode}"
 
-    def set_ul_agg_level(self, level: int) -> None:
+    def set_ul_agg_level(self, level: int) -> str:
         """Set UL aggregation level."""
-        self.write(f"ULAGGLVL {level}")
+        return f"ULAGGLVL {level}"
 
-    def set_dl_agg_level(self, level: int) -> None:
+    def set_dl_agg_level(self, level: int) -> str:
         """Set DL aggregation level."""
-        self.write(f"DLAGGLVL {level}")
+        return f"DLAGGLVL {level}"
 
     # =========================================================================
     # Supplementary Uplink (SUL) Configuration
     # =========================================================================
-    def enable_sul(self) -> None:
+    def enable_sul(self) -> str:
         """Enable Supplementary Uplink (SUL) carrier."""
-        self.write("ADDSULON")
+        return "ADDSULON"
 
-    def set_sul_band(self, cc: str, band: int) -> None:
+    def set_sul_band(self, cc: str, band: int) -> str:
         """Set SUL operation band. e.g. SULBAND PCC,80"""
-        self.write(f"SULBAND {cc},{band}")
+        return f"SULBAND {cc},{band}"
 
-    def set_sul_bandwidth(self, cc: str, bw: str) -> None:
+    def set_sul_bandwidth(self, cc: str, bw: str) -> str:
         """Set SUL channel bandwidth. e.g. SULBANDWIDTH PCC,5MHZ"""
-        self.write(f"SULBANDWIDTH {cc},{bw}")
+        return f"SULBANDWIDTH {cc},{bw}"
 
-    def set_sul_channel(self, cc: str, channel: int) -> None:
+    def set_sul_channel(self, cc: str, channel: int) -> str:
         """Set SUL center channel. e.g. SULCHAN PCC,349500"""
-        self.write(f"SULCHAN {cc},{channel}")
+        return f"SULCHAN {cc},{channel}"
 
-    def set_sul_offset_carrier(self, cc: str, offset: int) -> None:
+    def set_sul_offset_carrier(self, cc: str, offset: int) -> str:
         """Set SUL OffsetToCarrier. e.g. SULOFFSETCARRIER PCC,2198"""
-        self.write(f"SULOFFSETCARRIER {cc},{offset}")
+        return f"SULOFFSETCARRIER {cc},{offset}"
 
     # =========================================================================
     # Handover Configuration
     # =========================================================================
-    def set_ho_type(self, ho_type: str) -> None:
+    def set_ho_type(self, ho_type: str) -> str:
         """Set handover type. e.g. HOTYPE NORMAL"""
-        self.write(f"HOTYPE {ho_type}")
+        return f"HOTYPE {ho_type}"
 
-    def set_ho_frame_type(self, mode: str) -> None:
+    def set_ho_frame_type(self, mode: str) -> str:
         """Set handover duplex mode. e.g. HO_FRAMETYPE TDD"""
-        self.write(f"HO_FRAMETYPE {mode}")
+        return f"HO_FRAMETYPE {mode}"
 
-    def set_ho_channel_setting_mode(self, mode: str = "LOWESTGSCN") -> None:
+    def set_ho_channel_setting_mode(self, mode: str = "LOWESTGSCN") -> str:
         """Set handover channel setting mode."""
-        self.write(f"HO_CHANSETMODE {mode}")
+        return f"HO_CHANSETMODE {mode}"
 
-    def set_ho_band(self, cc: str, band: int) -> None:
+    def set_ho_band(self, cc: str, band: int) -> str:
         """Set handover operation band. e.g. HO_BAND PCC,78"""
-        self.write(f"HO_BAND {cc},{band}")
+        return f"HO_BAND {cc},{band}"
 
-    def set_ho_dl_bandwidth(self, cc: str, bw: str) -> None:
+    def set_ho_dl_bandwidth(self, cc: str, bw: str) -> str:
         """Set handover DL bandwidth. e.g. HO_DLBANDWIDTH PCC,100MHZ"""
-        self.write(f"HO_DLBANDWIDTH {cc},{bw}")
+        return f"HO_DLBANDWIDTH {cc},{bw}"
 
-    def set_ho_dl_channel(self, cc: str, channel: int) -> None:
+    def set_ho_dl_channel(self, cc: str, channel: int) -> str:
         """Set handover DL center channel. e.g. HO_DLCHAN PCC,623334"""
-        self.write(f"HO_DLCHAN {cc},{channel}")
+        return f"HO_DLCHAN {cc},{channel}"
 
-    def set_ho_offset_carrier(self, cc: str, offset: int) -> None:
+    def set_ho_offset_carrier(self, cc: str, offset: int) -> str:
         """Set handover OffsetToCarrier. e.g. HO_OFFSETCARRIER PCC,0"""
-        self.write(f"HO_OFFSETCARRIER {cc},{offset}")
+        return f"HO_OFFSETCARRIER {cc},{offset}"
 
-    def set_ho_ssb_channel(self, cc: str, channel: int) -> None:
+    def set_ho_ssb_channel(self, cc: str, channel: int) -> str:
         """Set handover SSB channel. e.g. HO_SSBCHAN PCC,620352"""
-        self.write(f"HO_SSBCHAN {cc},{channel}")
+        return f"HO_SSBCHAN {cc},{channel}"
 
-    def execute_channel_handover(self) -> None:
+    def execute_channel_handover(self) -> str:
         """Execute channel handover."""
-        self.write("EXEC_CHHO")
-        self.opc()
+        # Note: Consider adding *OPC? after this command.
+        return "EXEC_CHHO"
 
     # =========================================================================
     # Routing / Port Configuration
     # =========================================================================
-    def set_routing_mode(self, mode: str) -> None:
+    def set_routing_mode(self, mode: str) -> str:
         """Set routing mode. mode: 'USER' | 'SISO' | etc. e.g. TXIQROUTING USER"""
-        self.write(f"TXIQROUTING {mode}")
+        return f"TXIQROUTING {mode}"
 
-    def set_meas_hw_slot(self, cc: str, slot: str) -> None:
+    def set_meas_hw_slot(self, cc: str, slot: str) -> str:
         """Set measurement HW slot. e.g. MEASHWSLOT PCC,SLOT1"""
-        self.write(f"MEASHWSLOT {cc},{slot}")
+        return f"MEASHWSLOT {cc},{slot}"
 
-    def set_meas_hw_port(self, cc: str, port: str) -> None:
+    def set_meas_hw_port(self, cc: str, port: str) -> str:
         """Set measurement HW port (TRx). e.g. MEASHWPORT PCC,TRX1"""
-        self.write(f"MEASHWPORT {cc},{port}")
+        return f"MEASHWPORT {cc},{port}"
 
-    def set_cell_trx(self, cc: str, trx: str) -> None:
+    def set_cell_trx(self, cc: str, trx: str) -> str:
         """Set Cell TRx port. e.g. CELLTRX PCC,TRX1"""
-        self.write(f"CELLTRX {cc},{trx}")
+        return f"CELLTRX {cc},{trx}"
 
-    def set_rf_out(self, setting: str) -> None:
+    def set_rf_out(self, setting: str) -> str:
         """Set RF output configuration."""
-        self.write(f"RFOUT {setting}")
+        return f"RFOUT {setting}"
 
-    def set_channel_coding(self, mode: str) -> None:
+    def set_channel_coding(self, mode: str) -> str:
         """Set channel coding. e.g. CHCODING RMC"""
-        self.write(f"CHCODING {mode}")
+        return f"CHCODING {mode}"
 
-    def set_box2_slot(self, slot: str, trx: str, value: Optional[float] = None) -> None:
+    def set_box2_slot(self, slot: str, trx: str, value: Optional[float] = None) -> str:
         """Set 2-box configuration slot. e.g. BOX2_SLOT1 TRX1,12.7"""
         if value is not None:
-            self.write(f"BOX2_SLOT1 {trx},{value}")
+            return f"BOX2_SLOT1 {trx},{value}"
         else:
-            self.write(f"BOX2_SLOT1 {trx}")
+            return f"BOX2_SLOT1 {trx}"
 
     # =========================================================================
     # AUX Connector Configuration (for external SG sync)
     # =========================================================================
-    def set_aux_frame_timing1(self, slot: str, mode: str) -> None:
+    def set_aux_frame_timing1(self, slot: str, mode: str) -> str:
         """Set AUX Frame Timing 1. e.g. AUX_FRAME_TIM1 SLOT1,FRAME"""
-        self.write(f"AUX_FRAME_TIM1 {slot},{mode}")
+        return f"AUX_FRAME_TIM1 {slot},{mode}"
 
-    def set_aux_frame_timing2(self, slot: str, mode: str) -> None:
+    def set_aux_frame_timing2(self, slot: str, mode: str) -> str:
         """Set AUX Frame Timing 2. e.g. AUX_FRAME_TIM2 SLOT1,FRAME"""
-        self.write(f"AUX_FRAME_TIM2 {slot},{mode}")
+        return f"AUX_FRAME_TIM2 {slot},{mode}"
 
     # =========================================================================
     # PDCCH / DCI Configuration
     # =========================================================================
-    def set_dci_format(self, fmt: str) -> None:
+    def set_dci_format(self, fmt: str) -> str:
         """Set DCI Format. e.g. DCIFORMAT FORMAT0_1_AND_1_1"""
-        self.write(f"DCIFORMAT {fmt}")
+        return f"DCIFORMAT {fmt}"
 
-    def set_scheduling(self, mode: str) -> None:
+    def set_scheduling(self, mode: str) -> str:
         """Set scheduling type. mode: 'STATIC' | 'DYNAMIC'. e.g. SCHEDULING STATIC"""
-        self.write(f"SCHEDULING {mode}")
+        return f"SCHEDULING {mode}"
 
-    def set_num_rb_coreset(self, cc: str, rb: str) -> None:
+    def set_num_rb_coreset(self, cc: str, rb: str) -> str:
         """Set CORESET Number of RBs. e.g. NUMRBCORESET PCC,FULLBW"""
-        self.write(f"NUMRBCORESET {cc},{rb}")
+        return f"NUMRBCORESET {cc},{rb}"
 
-    def set_num_sym_coreset(self, cc: str, sym: int) -> None:
+    def set_num_sym_coreset(self, cc: str, sym: int) -> str:
         """Set CORESET Number of Symbols."""
-        self.write(f"NUMSYMCORESET {cc},{sym}")
+        return f"NUMSYMCORESET {cc},{sym}"
 
-    def set_cce_index_type(self, cc: str, mode: str) -> None:
+    def set_cce_index_type(self, cc: str, mode: str) -> str:
         """Set CCE Index Allocation. e.g. CCEINDEX_TYPE PCC,AUTO"""
-        self.write(f"CCEINDEX_TYPE {cc},{mode}")
+        return f"CCEINDEX_TYPE {cc},{mode}"
 
-    def set_cce_index(self, cc: str, index: int) -> None:
+    def set_cce_index(self, cc: str, index: int) -> str:
         """Set CCE Index value."""
-        self.write(f"CCEINDEX {cc},{index}")
+        return f"CCEINDEX {cc},{index}"
 
-    def set_ss_candidate(self, cc: str, value: int) -> None:
+    def set_ss_candidate(self, cc: str, value: int) -> str:
         """Set number of PDCCH candidates."""
-        self.write(f"SSCANDIDATE {cc},{value}")
+        return f"SSCANDIDATE {cc},{value}"
 
-    def set_ss_candidate_al4(self, cc: str, value: int) -> None:
+    def set_ss_candidate_al4(self, cc: str, value: int) -> str:
         """Set number of PDCCH candidates for AL4."""
-        self.write(f"SSCANDIDATE_AL4 {cc},{value}")
+        return f"SSCANDIDATE_AL4 {cc},{value}"
 
-    def set_ss_candidate_al16(self, cc: str, value: int) -> None:
+    def set_ss_candidate_al16(self, cc: str, value: int) -> str:
         """Set number of PDCCH candidates for AL16."""
-        self.write(f"SSCANDIDATE_AL16 {cc},{value}")
+        return f"SSCANDIDATE_AL16 {cc},{value}"
 
-    def set_start_prb_cch_fmt1(self, cc: str, prb: int) -> None:
+    def set_start_prb_cch_fmt1(self, cc: str, prb: int) -> str:
         """Set starting PRB for CCH Format 1."""
-        self.write(f"STARTPRB_CCHFMT1 {cc},{prb}")
+        return f"STARTPRB_CCHFMT1 {cc},{prb}"
 
-    def set_start_prb_cch_fmt3(self, cc: str, prb: int) -> None:
+    def set_start_prb_cch_fmt3(self, cc: str, prb: int) -> str:
         """Set starting PRB for CCH Format 3."""
-        self.write(f"STARTPRB_CCHFMT3 {cc},{prb}")
+        return f"STARTPRB_CCHFMT3 {cc},{prb}"
 
-    def set_format_type(self, cc: str, fmt: str) -> None:
+    def set_format_type(self, cc: str, fmt: str) -> str:
         """Set PUCCH format type."""
-        self.write(f"FORMATTYPE {cc},{fmt}")
+        return f"FORMATTYPE {cc},{fmt}"
 
-    def set_format_type_cch(self, cc: str, fmt: str) -> None:
+    def set_format_type_cch(self, cc: str, fmt: str) -> str:
         """Set PUCCH CCH format type."""
-        self.write(f"FORMATTYPE_CCH {cc},{fmt}")
+        return f"FORMATTYPE_CCH {cc},{fmt}"
 
-    def set_group_hopping_cch(self, mode: str) -> None:
+    def set_group_hopping_cch(self, mode: str) -> str:
         """Set PUCCH Group Hopping. mode: 'ENABLE' | 'NEITHER'. e.g. GROUPHOPPING_CCH ENABLE"""
-        self.write(f"GROUPHOPPING_CCH {mode}")
+        return f"GROUPHOPPING_CCH {mode}"
 
-    def set_dl_harq_ack_codebook(self, cc: str, mode: str) -> None:
+    def set_dl_harq_ack_codebook(self, cc: str, mode: str) -> str:
         """Set HARQ-ACK Codebook. mode: 'DYNAMIC' | 'SEMISTATIC'"""
-        self.write(f"DLHARQACKCODEBOOK {cc},{mode}")
+        return f"DLHARQACKCODEBOOK {cc},{mode}"
 
-    def set_dl_num_harq_process(self, cc: str, num: int) -> None:
+    def set_dl_num_harq_process(self, cc: str, num: int) -> str:
         """Set number of DL HARQ processes."""
-        self.write(f"DLNUMHARQPROCESS {cc},{num}")
+        return f"DLNUMHARQPROCESS {cc},{num}"
 
-    def set_crnti(self, cc: str, value: int) -> None:
+    def set_crnti(self, cc: str, value: int) -> str:
         """Set C-RNTI value."""
-        self.write(f"CRNTI {cc},{value}")
+        return f"CRNTI {cc},{value}"
 
-    def set_report_direct_current(self, mode: str) -> None:
+    def set_report_direct_current(self, mode: str) -> str:
         """Set Report Direct Current. e.g. REPORTDIRECTCURRENT ON"""
-        self.write(f"REPORTDIRECTCURRENT {mode}")
+        return f"REPORTDIRECTCURRENT {mode}"
 
-    def set_phy_chan_set_mode(self, mode: str) -> None:
+    def set_phy_chan_set_mode(self, mode: str) -> str:
         """Set Physical Channel Setting Mode."""
-        self.write(f"PHYCHANSETMODE {mode}")
+        return f"PHYCHANSETMODE {mode}"
 
     # =========================================================================
     # RMC / Modulation Configuration
     # =========================================================================
-    def set_ch_config(self, config: str) -> None:
+    def set_ch_config(self, config: str) -> str:
         """Set RMC Configuration. config: 'PUSCH' | 'PUCCH' | etc. e.g. CHCONFIG PUSCH"""
-        self.write(f"CHCONFIG {config}")
+        return f"CHCONFIG {config}"
 
-    def set_tx_config(self, cc: str, mode: str) -> None:
+    def set_tx_config(self, cc: str, mode: str) -> str:
         """Set txConfig. e.g. TXCONFIG PCC,CODEBOOK"""
-        self.write(f"TXCONFIG {cc},{mode}")
+        return f"TXCONFIG {cc},{mode}"
 
     # --- DL RMC ---
-    def set_dl_rmc_rb(self, cc: str, rb: int) -> None:
+    def set_dl_rmc_rb(self, cc: str, rb: int) -> str:
         """Set DL RMC Number of RB. e.g. DLRMC_RB PCC,0"""
-        self.write(f"DLRMC_RB {cc},{rb}")
+        return f"DLRMC_RB {cc},{rb}"
 
-    def set_dl_rb_start(self, cc: str, start: int) -> None:
+    def set_dl_rb_start(self, cc: str, start: int) -> str:
         """Set DL RMC Starting RB. e.g. DLRB_START PCC,0"""
-        self.write(f"DLRB_START {cc},{start}")
+        return f"DLRB_START {cc},{start}"
 
-    def set_dl_mcs_table(self, cc: str, table: str) -> None:
+    def set_dl_mcs_table(self, cc: str, table: str) -> str:
         """Set DL MCS Index Table. e.g. DLMCS_TABLE PCC,64QAM"""
-        self.write(f"DLMCS_TABLE {cc},{table}")
+        return f"DLMCS_TABLE {cc},{table}"
 
-    def set_dl_mcs_index(self, cc: str, index: int) -> None:
+    def set_dl_mcs_index(self, cc: str, index: int) -> str:
         """Set DL MCS Index. e.g. DLIMCS PCC,4"""
-        self.write(f"DLIMCS {cc},{index}")
+        return f"DLIMCS {cc},{index}"
 
-    def set_dl_rmc(self, cc: str, rmc: str) -> None:
+    def set_dl_rmc(self, cc: str, rmc: str) -> str:
         """Set DL RMC configuration name."""
-        self.write(f"DLRMC {cc},{rmc}")
+        return f"DLRMC {cc},{rmc}"
 
     # --- UL RMC ---
-    def set_ul_waveform(self, cc: str, waveform: str) -> None:
+    def set_ul_waveform(self, cc: str, waveform: str) -> str:
         """Set UL waveform. waveform: 'DFTOFDM' | 'CPOFDM'. e.g. ULWAVEFORM PCC,DFTOFDM"""
-        self.write(f"ULWAVEFORM {cc},{waveform}")
+        return f"ULWAVEFORM {cc},{waveform}"
 
-    def set_ul_rmc_rb(self, cc: str, rb: int) -> None:
+    def set_ul_rmc_rb(self, cc: str, rb: int) -> str:
         """Set UL RMC Number of RB. e.g. ULRMC_RB PCC,162"""
-        self.write(f"ULRMC_RB {cc},{rb}")
+        return f"ULRMC_RB {cc},{rb}"
 
-    def set_ul_rb_start(self, cc: str, start: int) -> None:
+    def set_ul_rb_start(self, cc: str, start: int) -> str:
         """Set UL RMC Starting RB. e.g. ULRB_START PCC,0"""
-        self.write(f"ULRB_START {cc},{start}")
+        return f"ULRB_START {cc},{start}"
 
-    def set_ul_mcs_table(self, cc: str, table: str) -> None:
+    def set_ul_mcs_table(self, cc: str, table: str) -> str:
         """Set UL MCS Index Table. e.g. ULMCS_TABLE PCC,64QAM"""
-        self.write(f"ULMCS_TABLE {cc},{table}")
+        return f"ULMCS_TABLE {cc},{table}"
 
-    def set_ul_mcs_index(self, cc: str, index: int) -> None:
+    def set_ul_mcs_index(self, cc: str, index: int) -> str:
         """Set UL MCS Index. e.g. ULIMCS PCC,10"""
-        self.write(f"ULIMCS {cc},{index}")
+        return f"ULIMCS {cc},{index}"
 
-    def set_ul_rmc_mod(self, cc: str, mod: str) -> None:
+    def set_ul_rmc_mod(self, cc: str, mod: str) -> str:
         """Set UL RMC Modulation. e.g. ULRMC_MOD PCC,QPSK"""
-        self.write(f"ULRMC_MOD {cc},{mod}")
+        return f"ULRMC_MOD {cc},{mod}"
 
-    def set_ul_rmc(self, cc: str, rmc: str) -> None:
+    def set_ul_rmc(self, cc: str, rmc: str) -> str:
         """Set UL RMC configuration name."""
-        self.write(f"ULRMC {cc},{rmc}")
+        return f"ULRMC {cc},{rmc}"
 
     # =========================================================================
     # MIMO / Antenna Configuration
     # =========================================================================
-    def set_antenna_config(self, config: str) -> None:
+    def set_antenna_config(self, config: str) -> str:
         """Set antenna configuration."""
-        self.write(f"ANTCONFIG {config}")
+        return f"ANTCONFIG {config}"
 
-    def set_ul_antenna_config(self, cc: str, config: str) -> None:
+    def set_ul_antenna_config(self, cc: str, config: str) -> str:
         """Set UL antenna configuration. e.g. ULANTCONFIG PCC,1T2R"""
-        self.write(f"ULANTCONFIG {cc},{config}")
+        return f"ULANTCONFIG {cc},{config}"
 
-    def set_ul_antenna_num(self, cc: str, num: int) -> None:
+    def set_ul_antenna_num(self, cc: str, num: int) -> str:
         """Set UL antenna number."""
-        self.write(f"ULANTNUM {cc},{num}")
+        return f"ULANTNUM {cc},{num}"
 
-    def set_ul_layer_num(self, cc: str, num: int) -> None:
+    def set_ul_layer_num(self, cc: str, num: int) -> str:
         """Set UL number of layers."""
-        self.write(f"ULLAYERNUM {cc},{num}")
+        return f"ULLAYERNUM {cc},{num}"
 
-    def set_tpmi(self, cc: str, mode: str) -> None:
+    def set_tpmi(self, cc: str, mode: str) -> str:
         """Set TPMI mode."""
-        self.write(f"TPMI {cc},{mode}")
+        return f"TPMI {cc},{mode}"
 
-    def set_tpmi_value(self, cc: str, value: int) -> None:
+    def set_tpmi_value(self, cc: str, value: int) -> str:
         """Set TPMI value."""
-        self.write(f"TPMIVAL {cc},{value}")
+        return f"TPMIVAL {cc},{value}"
 
-    def set_ul_fptx(self, mode: str) -> None:
+    def set_ul_fptx(self, mode: str) -> str:
         """Set UL Full Power Tx mode. e.g. ULFPTX ON"""
-        self.write(f"ULFPTX {mode}")
+        return f"ULFPTX {mode}"
 
-    def set_mimo_ref_point(self, point: str) -> None:
+    def set_mimo_ref_point(self, point: str) -> str:
         """Set MIMO reference point."""
-        self.write(f"MIMO_REFPOINT {point}")
+        return f"MIMO_REFPOINT {point}"
 
-    def set_rx_div_ant_num(self, num: int) -> None:
+    def set_rx_div_ant_num(self, num: int) -> str:
         """Set Rx Diversity antenna number."""
-        self.write(f"RXDIVANTNUM {num}")
+        return f"RXDIVANTNUM {num}"
 
-    def set_rx_div_ca_mode(self, mode: str) -> None:
+    def set_rx_div_ca_mode(self, mode: str) -> str:
         """Set Rx Diversity CA mode."""
-        self.write(f"RXDIVCAMODE {mode}")
+        return f"RXDIVCAMODE {mode}"
 
-    def set_tx_diversity_mod_meas_type(self, mtype: str) -> None:
+    def set_tx_diversity_mod_meas_type(self, mtype: str) -> str:
         """Set Tx diversity modulation measurement type."""
-        self.write(f"TXDIV_MOD_MEAS_TYPE {mtype}")
+        return f"TXDIV_MOD_MEAS_TYPE {mtype}"
 
     # =========================================================================
     # Power Control / Level Settings
     # =========================================================================
-    def set_input_level(self, cc_or_value: Union[str, float], value: Optional[float] = None) -> None:
+    def set_input_level(self, cc_or_value: Union[str, float], value: Optional[float] = None) -> str:
         """
         Set input level (dBm).
         Usage: set_input_level("PCC", 23) or set_input_level(23)
         """
         if value is not None:
-            self.write(f"ILVL {cc_or_value},{value}")
+            return f"ILVL {cc_or_value},{value}"
         else:
-            self.write(f"ILVL {cc_or_value}")
+            return f"ILVL {cc_or_value}"
 
-    def set_output_level(self, cc: str, level: float) -> None:
+    def set_output_level(self, cc: str, level: float) -> str:
         """Set output level (dBm). e.g. OLVL PCC,-88.1"""
-        self.write(f"OLVL {cc},{level}")
+        return f"OLVL {cc},{level}"
 
-    def set_output_level_epre(self, cc: str, level: float) -> None:
+    def set_output_level_epre(self, cc: str, level: float) -> str:
         """Set output level EPRE (dBm/SCS). e.g. OLVL_EPRE PCC,-85.0"""
-        self.write(f"OLVL_EPRE {cc},{level}")
+        return f"OLVL_EPRE {cc},{level}"
 
-    def set_tpc_pattern(self, pattern: str) -> None:
+    def set_tpc_pattern(self, pattern: str) -> str:
         """
         Set TPC pattern.
         pattern: 'AUTO' | 'ALLO' (All 0) | 'ALL3' (All +3) | 'ALL_3' (All -3) etc.
         """
-        self.write(f"TPCPAT {pattern}")
+        return f"TPCPAT {pattern}"
 
-    def set_tpc_target_power(self, power: float) -> None:
+    def set_tpc_target_power(self, power: float) -> str:
         """Set TPC Target Power."""
-        self.write(f"TPCTARGETPOW {power}")
+        return f"TPCTARGETPOW {power}"
 
-    def set_max_ul_power(self, power: float) -> None:
+    def set_max_ul_power(self, power: float) -> str:
         """Set maximum UL power (LTE). e.g. MAXULPWR 23"""
-        self.write(f"MAXULPWR {power}")
+        return f"MAXULPWR {power}"
 
-    def set_max_ul_level(self, mode: str) -> None:
+    def set_max_ul_level(self, mode: str) -> str:
         """Set max UL level mode. e.g. MAXULLVL ON"""
-        self.write(f"MAXULLVL {mode}")
+        return f"MAXULLVL {mode}"
 
-    def set_max_ue_fr1_ul_power(self, power: float) -> None:
+    def set_max_ue_fr1_ul_power(self, power: float) -> str:
         """Set p-MaxUE-FR1 value. e.g. MAXUEFR1ULPWR 23"""
-        self.write(f"MAXUEFR1ULPWR {power}")
+        return f"MAXUEFR1ULPWR {power}"
 
-    def set_max_ue_fr1_ul_level(self, mode: str) -> None:
+    def set_max_ue_fr1_ul_level(self, mode: str) -> str:
         """Set p-MaxUE-FR1 On/Off. e.g. MAXUEFR1ULLVL ON"""
-        self.write(f"MAXUEFR1ULLVL {mode}")
+        return f"MAXUEFR1ULLVL {mode}"
 
-    def set_max_power(self, power: float) -> None:
+    def set_max_power(self, power: float) -> str:
         """Set max power."""
-        self.write(f"MAXPWR {power}")
+        return f"MAXPWR {power}"
 
-    def set_nr_fr1_ul_level(self, level: float) -> None:
+    def set_nr_fr1_ul_level(self, level: float) -> str:
         """Set NR FR1 UL level."""
-        self.write(f"NRFR1ULLVL {level}")
+        return f"NRFR1ULLVL {level}"
 
-    def set_nr_fr1_ul_power(self, power: float) -> None:
+    def set_nr_fr1_ul_power(self, power: float) -> str:
         """Set NR FR1 UL power."""
-        self.write(f"NRFR1ULPWR {power}")
+        return f"NRFR1ULPWR {power}"
 
-    def set_p_nominal(self, value: float) -> None:
+    def set_p_nominal(self, value: float) -> str:
         """Set P0 Nominal PUSCH."""
-        self.write(f"PONOMINAL {value}")
+        return f"PONOMINAL {value}"
 
-    def set_ue_power_class(self, power_class: int) -> None:
+    def set_ue_power_class(self, power_class: int) -> str:
         """Set UE Power Class. e.g. UEPOWERCLASS 3"""
-        self.write(f"UEPOWERCLASS {power_class}")
+        return f"UEPOWERCLASS {power_class}"
 
-    def set_xscale(self, mode: str) -> None:
+    def set_xscale(self, mode: str) -> str:
         """Set XSCALE mode. e.g. XSCALE OFF"""
-        self.write(f"XSCALE {mode}")
+        return f"XSCALE {mode}"
 
-    def set_lte_config_for_dps(self, mode: str) -> None:
+    def set_lte_config_for_dps(self, mode: str) -> str:
         """Set LTE config for DynamicPowerSharing. e.g. LTECONFIGFORDPS ON"""
-        self.write(f"LTECONFIGFORDPS {mode}")
+        return f"LTECONFIGFORDPS {mode}"
 
-    def set_tx_switching(self, mode: str) -> None:
+    def set_tx_switching(self, mode: str) -> str:
         """Set Tx switching mode."""
-        self.write(f"TXSWITCHING {mode}")
+        return f"TXSWITCHING {mode}"
 
     # =========================================================================
     # External Loss Settings
     # =========================================================================
-    def set_dl_ext_loss(self, value: float) -> None:
+    def set_dl_ext_loss(self, value: float) -> str:
         """Set DL external loss (JND). e.g. DLEXTLOSSJND 0.5"""
-        self.write(f"DLEXTLOSSJND {value}")
+        return f"DLEXTLOSSJND {value}"
 
-    def set_ul_ext_loss(self, value: float) -> None:
+    def set_ul_ext_loss(self, value: float) -> str:
         """Set UL external loss (JND). e.g. ULEXTLOSSJND 0.5"""
-        self.write(f"ULEXTLOSSJND {value}")
+        return f"ULEXTLOSSJND {value}"
 
-    def set_aux_ext_loss(self, value: float) -> None:
+    def set_aux_ext_loss(self, value: float) -> str:
         """Set AUX external loss (JND)."""
-        self.write(f"AUEXTLOSSJND {value}")
+        return f"AUEXTLOSSJND {value}"
 
-    def set_loss_table_value(self, *args) -> None:
+    def set_loss_table_value(self, *args) -> str:
         """Set loss table value. e.g. LOSSTBLVAL freq,loss"""
-        self.write(f"LOSSTBLVAL {','.join(str(a) for a in args)}")
+        return f"LOSSTBLVAL {','.join(str(a) for a in args)}"
 
-    def set_ext_loss_table_6g(self, value: float) -> None:
+    def set_ext_loss_table_6g(self, value: float) -> str:
         """Set external loss table ID for 6GHz band."""
-        self.write(f"EXTLOSSTBLID6GJND {value}")
+        return f"EXTLOSSTBLID6GJND {value}"
 
-    def set_ext_loss_table_12g(self, value: float) -> None:
+    def set_ext_loss_table_12g(self, value: float) -> str:
         """Set external loss table ID for 12GHz band."""
-        self.write(f"EXTLOSSTBLID12GJND {value}")
+        return f"EXTLOSSTBLID12GJND {value}"
 
-    def set_ext_loss_table_28g(self, value: float) -> None:
+    def set_ext_loss_table_28g(self, value: float) -> str:
         """Set external loss table ID for 28GHz band."""
-        self.write(f"EXTLOSSTBLID28GJND {value}")
+        return f"EXTLOSSTBLID28GJND {value}"
 
-    def set_ext_loss_w(self, value: float) -> None:
+    def set_ext_loss_w(self, value: float) -> str:
         """Set external loss W (JND)."""
-        self.write(f"EXTLOSSWJND {value}")
+        return f"EXTLOSSWJND {value}"
 
-    def set_dl_ext_loss_rf_conv(self, value: float) -> None:
+    def set_dl_ext_loss_rf_conv(self, value: float) -> str:
         """Set DL external loss with RF converter P2."""
-        self.write(f"DLEXTLOSSRFCONVP2JND {value}")
+        return f"DLEXTLOSSRFCONVP2JND {value}"
 
-    def set_ul_ext_loss_rf_conv(self, value: float) -> None:
+    def set_ul_ext_loss_rf_conv(self, value: float) -> str:
         """Set UL external loss with RF converter P1."""
-        self.write(f"ULEXTLOSSRFCONVP1JND {value}")
+        return f"ULEXTLOSSRFCONVP1JND {value}"
 
     # =========================================================================
     # EN-DC Specific
     # =========================================================================
-    def set_endc_meas_mode(self, mode: str) -> None:
+    def set_endc_meas_mode(self, mode: str) -> str:
         """Set EN-DC measurement mode. mode: 'NR' | 'LTE' | etc."""
-        self.write(f"ENDCMEASMODE {mode}")
+        return f"ENDCMEASMODE {mode}"
 
-    def set_sync_offset(self, offset: int) -> None:
+    def set_sync_offset(self, offset: int) -> str:
         """Set LTE-NR Frame Timing Offset (ms). e.g. SYNCOFFSET 3"""
-        self.write(f"SYNCOFFSET {offset}")
+        return f"SYNCOFFSET {offset}"
 
-    def enter_sync(self, mode: str = "PRIMARY") -> None:
+    def enter_sync(self, mode: str = "PRIMARY") -> str:
         """Execute frame timing synchronization. e.g. ENTERSYNC PRIMARY"""
-        self.write(f"ENTERSYNC {mode}")
-        self.opc()
+        # Note: Consider adding *OPC? after this command.
+        return f"ENTERSYNC {mode}"
 
     # =========================================================================
     # NR-DC Specific
     # =========================================================================
-    def set_nrdc_target_fr(self, fr: str) -> None:
+    def set_nrdc_target_fr(self, fr: str) -> str:
         """Select target FR for NR-DC commands. fr: 'FR1' | 'FR2'"""
-        self.write(f"NRDC_SEL_TARGETFR {fr}")
+        return f"NRDC_SEL_TARGETFR {fr}"
 
-    def set_fr1_fr2_meas_mode(self, mode: str) -> None:
+    def set_fr1_fr2_meas_mode(self, mode: str) -> str:
         """Select FR1/FR2 for measurement. mode: 'FR1' | 'FR2'"""
-        self.write(f"FR1FR2MEASMODE {mode}")
+        return f"FR1FR2MEASMODE {mode}"
 
-    def set_fr1_fr2_rx_meas_mode(self, mode: str) -> None:
+    def set_fr1_fr2_rx_meas_mode(self, mode: str) -> str:
         """Select FR1/FR2 for Rx measurement."""
-        self.write(f"FR1FR2RXMEASMODE {mode}")
+        return f"FR1FR2RXMEASMODE {mode}"
 
     # =========================================================================
     # CSI-RS Configuration
     # =========================================================================
-    def set_csirs(self, mode: str) -> None:
+    def set_csirs(self, mode: str) -> str:
         """Set CSI-RS mode. e.g. CSIRS ON"""
-        self.write(f"CSIRS {mode}")
+        return f"CSIRS {mode}"
 
-    def set_csirs_resource(self, cc: str, value: int) -> None:
+    def set_csirs_resource(self, cc: str, value: int) -> str:
         """Set CSI-RS resource number."""
-        self.write(f"CSIRSRESOURCE {cc},{value}")
+        return f"CSIRSRESOURCE {cc},{value}"
 
-    def set_csirs_periodicity(self, cc: str, period: int) -> None:
+    def set_csirs_periodicity(self, cc: str, period: int) -> str:
         """Set CSI-RS periodicity."""
-        self.write(f"CSIRSPERIODICITY {cc},{period}")
+        return f"CSIRSPERIODICITY {cc},{period}"
 
-    def set_csirs_offset(self, cc: str, offset: int) -> None:
+    def set_csirs_offset(self, cc: str, offset: int) -> str:
         """Set CSI-RS offset."""
-        self.write(f"CSIRSOFFSET {cc},{offset}")
+        return f"CSIRSOFFSET {cc},{offset}"
 
-    def set_csirs_nrb(self, cc: str, nrb: int) -> None:
+    def set_csirs_nrb(self, cc: str, nrb: int) -> str:
         """Set CSI-RS Number of RBs."""
-        self.write(f"CSIRSNRB {cc},{nrb}")
+        return f"CSIRSNRB {cc},{nrb}"
 
-    def set_csirs_start_rb(self, cc: str, rb: int) -> None:
+    def set_csirs_start_rb(self, cc: str, rb: int) -> str:
         """Set CSI-RS Starting RB."""
-        self.write(f"CSIRSSTARTRB {cc},{rb}")
+        return f"CSIRSSTARTRB {cc},{rb}"
 
-    def set_csirs_start_symbol(self, cc: str, symbol: int) -> None:
+    def set_csirs_start_symbol(self, cc: str, symbol: int) -> str:
         """Set CSI-RS Starting Symbol."""
-        self.write(f"CSIRSSTARTSYMBOL {cc},{symbol}")
+        return f"CSIRSSTARTSYMBOL {cc},{symbol}"
 
-    def set_avoid_csirs_for_ref_sens(self, cc: str, mode: str) -> None:
+    def set_avoid_csirs_for_ref_sens(self, cc: str, mode: str) -> str:
         """Disable PDSCH during CSI-RS slots for ref. sensitivity. e.g. AVOIDCSIRSFORREFSENS PCC,ON"""
-        self.write(f"AVOIDCSIRSFORREFSENS {cc},{mode}")
+        return f"AVOIDCSIRSFORREFSENS {cc},{mode}"
 
     # =========================================================================
     # SRS Configuration
     # =========================================================================
-    def set_srs_resource(self, cc: str, value: int) -> None:
+    def set_srs_resource(self, cc: str, value: int) -> str:
         """Set SRS resource number."""
-        self.write(f"SRSRESOURCE {cc},{value}")
+        return f"SRSRESOURCE {cc},{value}"
 
-    def set_srs_periodicity(self, cc: str, period: int) -> None:
+    def set_srs_periodicity(self, cc: str, period: int) -> str:
         """Set SRS periodicity."""
-        self.write(f"SRSPERIODICITY {cc},{period}")
+        return f"SRSPERIODICITY {cc},{period}"
 
-    def set_srs_offset(self, offset: int) -> None:
+    def set_srs_offset(self, offset: int) -> str:
         """Set SRS Offset. e.g. SRSOFFSET 7"""
-        self.write(f"SRSOFFSET {offset}")
+        return f"SRSOFFSET {offset}"
 
-    def set_srs_alpha(self, alpha: str) -> None:
+    def set_srs_alpha(self, alpha: str) -> str:
         """Set SRS alpha value. e.g. SRS_ALPHA ALPHA0"""
-        self.write(f"SRS_ALPHA {alpha}")
+        return f"SRS_ALPHA {alpha}"
 
-    def set_srs_p0(self, p0: float) -> None:
+    def set_srs_p0(self, p0: float) -> str:
         """Set SRS p0 value. e.g. SRS_P0 0"""
-        self.write(f"SRS_P0 {p0}")
+        return f"SRS_P0 {p0}"
 
-    def set_srs_num_ports(self, ports: int) -> None:
+    def set_srs_num_ports(self, ports: int) -> str:
         """Set SRS number of ports."""
-        self.write(f"SRSNUMPORTS {ports}")
+        return f"SRSNUMPORTS {ports}"
 
-    def set_srs_start_symbol(self, symbol: int) -> None:
+    def set_srs_start_symbol(self, symbol: int) -> str:
         """Set SRS starting symbol."""
-        self.write(f"SRSSTARTSYMBOL {symbol}")
+        return f"SRSSTARTSYMBOL {symbol}"
 
-    def set_srs_symbol_length(self, length: int) -> None:
+    def set_srs_symbol_length(self, length: int) -> str:
         """Set SRS symbol length."""
-        self.write(f"SRSSYMBOLLENGTH {length}")
+        return f"SRSSYMBOLLENGTH {length}"
 
     # =========================================================================
     # PRACH Configuration
     # =========================================================================
-    def set_prach_config_index(self, index: int) -> None:
+    def set_prach_config_index(self, index: int) -> str:
         """Set PRACH Configuration Index. e.g. PRACHCONFIGINDEX 81"""
-        self.write(f"PRACHCONFIGINDEX {index}")
+        return f"PRACHCONFIGINDEX {index}"
 
-    def set_preamble_target(self, power: float) -> None:
+    def set_preamble_target(self, power: float) -> str:
         """Set Preamble Received Target Power. e.g. PREAMBLETGT -92"""
-        self.write(f"PREAMBLETGT {power}")
+        return f"PREAMBLETGT {power}"
 
-    def set_preamble_max(self, value: str) -> None:
+    def set_preamble_max(self, value: str) -> str:
         """Set PreambleTransMax. e.g. PREAMBLEMAX N7"""
-        self.write(f"PREAMBLEMAX {value}")
+        return f"PREAMBLEMAX {value}"
 
-    def set_power_ramping_step(self, step: str) -> None:
+    def set_power_ramping_step(self, step: str) -> str:
         """Set Power Ramping Step. e.g. PWRRMPSTEP dB4"""
-        self.write(f"PWRRMPSTEP {step}")
+        return f"PWRRMPSTEP {step}"
 
     # =========================================================================
     # UL Allocation List (for multi-slot scheduling)
     # =========================================================================
-    def set_ul_alloc_list_size(self, size: int) -> None:
+    def set_ul_alloc_list_size(self, size: int) -> str:
         """Set UL allocation list size."""
-        self.write(f"ULALLOCLIST_SIZE {size}")
+        return f"ULALLOCLIST_SIZE {size}"
 
-    def set_ul_alloc_list(self, *args) -> None:
+    def set_ul_alloc_list(self, *args) -> str:
         """Set UL allocation list entry."""
-        self.write(f"ULALLOCLIST {','.join(str(a) for a in args)}")
+        return f"ULALLOCLIST {','.join(str(a) for a in args)}"
 
-    def set_ul_alloc_list_k2(self, k2: int) -> None:
+    def set_ul_alloc_list_k2(self, k2: int) -> str:
         """Set UL allocation list K2 value."""
-        self.write(f"ULALLOCLIST_K2 {k2}")
+        return f"ULALLOCLIST_K2 {k2}"
 
     # =========================================================================
     # Spectrum / Additional Spectrum Emission
     # =========================================================================
-    def set_additional_spectrum_emission(self, mode: str) -> None:
+    def set_additional_spectrum_emission(self, mode: str) -> str:
         """Enable/disable Additional Spectrum Emission. e.g. ADDSPEM ON"""
-        self.write(f"ADDSPEM {mode}")
+        return f"ADDSPEM {mode}"
 
-    def set_additional_spectrum_emission_value(self, cc_or_value, value: Optional[int] = None) -> None:
+    def set_additional_spectrum_emission_value(self, cc_or_value, value: Optional[int] = None) -> str:
         """Set ASEM value. e.g. ADDSPEMVALUE 1 or ADDSPEMVALUE PCC,0"""
         if value is not None:
-            self.write(f"ADDSPEMVALUE {cc_or_value},{value}")
+            return f"ADDSPEMVALUE {cc_or_value},{value}"
         else:
-            self.write(f"ADDSPEMVALUE {cc_or_value}")
+            return f"ADDSPEMVALUE {cc_or_value}"
 
-    def set_additional_spectrum_emission_sul(self, value: int) -> None:
+    def set_additional_spectrum_emission_sul(self, value: int) -> str:
         """Set ASEM value for SUL."""
-        self.write(f"ADDSPEMVALUE_SUL {value}")
+        return f"ADDSPEMVALUE_SUL {value}"
 
-    def set_addspem_sul(self, mode: str) -> None:
+    def set_addspem_sul(self, mode: str) -> str:
         """Enable/disable Additional Spectrum Emission for SUL."""
-        self.write(f"ADDSPEM_SUL {mode}")
+        return f"ADDSPEM_SUL {mode}"
 
-    def set_sib2_ns(self, value: int) -> None:
+    def set_sib2_ns(self, value: int) -> str:
         """Set SIB2 NS value."""
-        self.write(f"SIB2_NS {value}")
+        return f"SIB2_NS {value}"
 
     # =========================================================================
     # RedCap (Reduced Capability) Configuration
     # =========================================================================
-    def set_redcap_operation(self, mode: str) -> None:
+    def set_redcap_operation(self, mode: str) -> str:
         """Set RedCap operation mode. e.g. REDCAPOP ON"""
-        self.write(f"REDCAPOP {mode}")
+        return f"REDCAPOP {mode}"
 
     # =========================================================================
     # NR NTN (Non-Terrestrial Network) Configuration
     # =========================================================================
-    def set_nrntn(self, mode: str) -> None:
+    def set_nrntn(self, mode: str) -> str:
         """Enable/disable NR NTN mode."""
-        self.write(f"NRNTN {mode}")
+        return f"NRNTN {mode}"
 
-    def set_ntn_preset(self, preset: str) -> None:
+    def set_ntn_preset(self, preset: str) -> str:
         """Set NTN preset configuration."""
-        self.write(f"NTN_PRESET {preset}")
+        return f"NTN_PRESET {preset}"
 
     def query_ntn_ue_location_latitude(self) -> str:
         """Query NTN UE location latitude."""
-        return self.query("NTN_UELOC_LATI?")
+        return "NTN_UELOC_LATI?"
 
     def query_ntn_ue_location_longitude(self) -> str:
         """Query NTN UE location longitude."""
-        return self.query("NTN_UELOC_LONGI?")
+        return "NTN_UELOC_LONGI?"
 
     def query_ntn_ue_location_altitude(self) -> str:
         """Query NTN UE location altitude."""
-        return self.query("NTN_UELOC_ALTI?")
+        return "NTN_UELOC_ALTI?"
 
     # =========================================================================
     # Measurement Control
     # =========================================================================
-    def all_meas_items_off(self) -> None:
+    def all_meas_items_off(self) -> str:
         """Turn off all measurement items."""
-        self.write("ALLMEASITEMS_OFF")
-        self.opc()
+        # Note: Consider adding *OPC? after this command.
+        return "ALLMEASITEMS_OFF"
 
-    def set_meas_item(self, item: str) -> None:
+    def set_meas_item(self, item: str) -> str:
         """
         Set measurement item mode.
         item: 'NORMAL' | 'PCT' | 'EVMTP' | etc.
         """
-        self.write(f"MEASITEM {item}")
+        return f"MEASITEM {item}"
 
-    def set_meas_metric(self, metric: str) -> None:
+    def set_meas_metric(self, metric: str) -> str:
         """Set measurement metric."""
-        self.write(f"MEASMETRIC {metric}")
+        return f"MEASMETRIC {metric}"
 
     # --- Individual measurement ON/OFF ---
-    def set_power_meas(self, on: bool, avg: Optional[int] = None) -> None:
+    def set_power_meas(self, on: bool, avg: Optional[int] = None) -> str:
         """Enable/disable power measurement and optionally set averaging count."""
-        self.write(f"PWR_MEAS {'ON' if on else 'OFF'}")
+        cmd = f"PWR_MEAS {'ON' if on else 'OFF'}"
         if avg is not None:
-            self.write(f"PWR_AVG {avg}")
+            cmd += f";PWR_AVG {avg}"
+        return cmd
 
-    def set_mod_meas(self, on: bool, avg: Optional[int] = None) -> None:
+    def set_mod_meas(self, on: bool, avg: Optional[int] = None) -> str:
         """Enable/disable modulation analysis and optionally set averaging count."""
-        self.write(f"MOD_MEAS {'ON' if on else 'OFF'}")
+        cmd = f"MOD_MEAS {'ON' if on else 'OFF'}"
         if avg is not None:
-            self.write(f"MOD_AVG {avg}")
+            cmd += f";MOD_AVG {avg}"
+        return cmd
 
-    def set_sem_meas(self, on: bool, avg: Optional[int] = None) -> None:
+    def set_sem_meas(self, on: bool, avg: Optional[int] = None) -> str:
         """Enable/disable Spectrum Emission Mask measurement."""
-        self.write(f"SEM_MEAS {'ON' if on else 'OFF'}")
+        cmd = f"SEM_MEAS {'ON' if on else 'OFF'}"
         if avg is not None:
-            self.write(f"SEM_AVG {avg}")
+            cmd += f";SEM_AVG {avg}"
+        return cmd
 
-    def set_obw_meas(self, on: bool) -> None:
+    def set_obw_meas(self, on: bool) -> str:
         """Enable/disable Occupied Bandwidth measurement."""
-        self.write(f"OBWMEAS {'ON' if on else 'OFF'}")
+        return f"OBWMEAS {'ON' if on else 'OFF'}"
 
-    def set_obw_meas_bw(self, bw: str) -> None:
+    def set_obw_meas_bw(self, bw: str) -> str:
         """Set OBW measurement bandwidth."""
-        self.write(f"OBWMEASBW {bw}")
+        return f"OBWMEASBW {bw}"
 
-    def set_obw_meas_proc(self, proc: str) -> None:
+    def set_obw_meas_proc(self, proc: str) -> str:
         """Set OBW measurement processing mode."""
-        self.write(f"OBWMEASPROC {proc}")
+        return f"OBWMEASPROC {proc}"
 
-    def set_aclr_meas(self, on: bool) -> None:
+    def set_aclr_meas(self, on: bool) -> str:
         """Set ACLR measurement avg/count."""
-        self.write(f"ACLR_MEAS {'ON' if on else 'OFF'}")
+        return f"ACLR_MEAS {'ON' if on else 'OFF'}"
 
-    def set_aclr_avg(self, avg: int) -> None:
+    def set_aclr_avg(self, avg: int) -> str:
         """Set ACLR averaging count."""
-        self.write(f"ACLRAVG {avg}")
+        return f"ACLR_AVG {avg}"
 
-    def set_throughput_meas(self, on: bool) -> None:
+    def set_throughput_meas(self, on: bool) -> str:
         """Enable/disable Throughput measurement."""
-        self.write(f"TPUT_MEAS {'ON' if on else 'OFF'}")
+        return f"TPUT_MEAS {'ON' if on else 'OFF'}"
 
-    def set_throughput_sample(self, samples: int) -> None:
+    def set_throughput_sample(self, samples: int) -> str:
         """Set throughput measurement sample count. e.g. TPUT_SAMPLE 2466"""
-        self.write(f"TPUT_SAMPLE {samples}")
+        return f"TPUT_SAMPLE {samples}"
 
-    def set_power_temp_meas(self, on: bool, avg: Optional[int] = None) -> None:
+    def set_power_temp_meas(self, on: bool, avg: Optional[int] = None) -> str:
         """Enable/disable Power Template measurement."""
-        self.write(f"PWRTEMP_MEAS {'ON' if on else 'OFF'}")
+        cmd = f"PWRTEMP_MEAS {'ON' if on else 'OFF'}"
         if avg is not None:
-            self.write(f"PWRTEMP_AVG {avg}")
+            cmd += f";PWRTEMP_AVG {avg}"
+        return cmd
 
-    def set_ibem_meas(self, mode: str) -> None:
+    def set_ibem_meas(self, mode: str) -> str:
         """Set IBEM (In-Band Emission) measurement."""
-        self.write(f"IBEM {mode}")
+        return f"IBEM {mode}"
 
-    def set_ibem_clfr(self, value: str) -> None:
+    def set_ibem_clfr(self, value: str) -> str:
         """Set IBEM CLFR value."""
-        self.write(f"IBEM_CLFR {value}")
+        return f"IBEM_CLFR {value}"
 
-    def set_early_decision(self, mode: str) -> None:
+    def set_early_decision(self, mode: str) -> str:
         """Enable/disable early decision for throughput. e.g. EARLY_DECISION ON"""
-        self.write(f"EARLY_DECISION {mode}")
+        return f"EARLY_DECISION {mode}"
 
-    def set_fast_mod_analysis_mode(self, mode: str) -> None:
+    def set_fast_mod_analysis_mode(self, mode: str) -> str:
         """Enable/disable Fast Analysis Mode. e.g. FAST_MODANA_MODE ON"""
-        self.write(f"FAST_MODANA_MODE {mode}")
+        return f"FAST_MODANA_MODE {mode}"
 
-    def set_meas_sf_overlapping_nr(self, mode: str) -> None:
+    def set_meas_sf_overlapping_nr(self, mode: str) -> str:
         """Set Measurement Subframe overlapping with NR symbols."""
-        self.write(f"MEAS_SF_OVERLAPPING_NR {mode}")
+        return f"MEAS_SF_OVERLAPPING_NR {mode}"
 
-    def set_meas_target_system(self, system: str) -> None:
+    def set_meas_target_system(self, system: str) -> str:
         """Set measurement target system."""
-        self.write(f"MEAS_TARGET_SYSTEM {system}")
+        return f"MEAS_TARGET_SYSTEM {system}"
 
     # =========================================================================
     # Power Control Tolerance (PCT) Settings
     # =========================================================================
-    def set_pct_type(self, ptype: str) -> None:
+    def set_pct_type(self, ptype: str) -> str:
         """
         Set Power Control Tolerance test type.
         ptype: 'ABS' | 'REL_UP' | 'REL_DOWN' | 'REL_ALT' | 'AGG' etc.
         """
-        self.write(f"PCTTYPE {ptype}")
+        return f"PCTTYPE {ptype}"
 
-    def set_rel_sf(self, sf: int) -> None:
+    def set_rel_sf(self, sf: int) -> str:
         """Set Relative Power measurement subframe. e.g. REL_SF 10"""
-        self.write(f"REL_SF {sf}")
+        return f"REL_SF {sf}"
 
-    def set_rel_rb1(self, rb: int) -> None:
+    def set_rel_rb1(self, rb: int) -> str:
         """Set Relative Power UL Number of RB1."""
-        self.write(f"REL_RB1 {rb}")
+        return f"REL_RB1 {rb}"
 
-    def set_rel_rb_start1(self, start: int) -> None:
+    def set_rel_rb_start1(self, start: int) -> str:
         """Set Relative Power UL Starting RB1."""
-        self.write(f"REL_RB_START1 {start}")
+        return f"REL_RB_START1 {start}"
 
-    def set_rel_rb2(self, rb: int) -> None:
+    def set_rel_rb2(self, rb: int) -> str:
         """Set Relative Power UL Number of RB2."""
-        self.write(f"REL_RB2 {rb}")
+        return f"REL_RB2 {rb}"
 
-    def set_rel_rb_start2(self, start: int) -> None:
+    def set_rel_rb_start2(self, start: int) -> str:
         """Set Relative Power UL Starting RB2."""
-        self.write(f"REL_RB_START2 {start}")
+        return f"REL_RB_START2 {start}"
 
-    def set_rel_rb_change(self, change: str) -> None:
+    def set_rel_rb_change(self, change: str) -> str:
         """Set Relative Power RB change mode."""
-        self.write(f"REL_RBCHANGE {change}")
+        return f"REL_RBCHANGE {change}"
 
-    def set_rel_initial_power(self, power: float) -> None:
+    def set_rel_initial_power(self, power: float) -> str:
         """Set Relative Power Initial Power. e.g. REL_INITPWR -10.0"""
-        self.write(f"REL_INITPWR {power}")
+        return f"REL_INITPWR {power}"
 
-    def set_rel_pumax_mode(self, mode: str) -> None:
+    def set_rel_pumax_mode(self, mode: str) -> str:
         """Set Relative Power Pumax mode."""
-        self.write(f"REL_PUMAX_MODE {mode}")
+        return f"REL_PUMAX_MODE {mode}"
 
     # =========================================================================
     # EVM with Transient Period (EVMTP) Settings
     # =========================================================================
-    def set_transient_capability(self, cap: str) -> None:
+    def set_transient_capability(self, cap: str) -> str:
         """Set transient capability. e.g. TRANSIENT_CAPA 2US"""
-        self.write(f"TRANSIENT_CAPA {cap}")
+        return f"TRANSIENT_CAPA {cap}"
 
-    def set_evmtp_hp_ul_rb(self, rb: int) -> None:
+    def set_evmtp_hp_ul_rb(self, rb: int) -> str:
         """Set EVM-TP high power UL RB."""
-        self.write(f"EVMTP_HP_ULRB {rb}")
+        return f"EVMTP_HP_ULRB {rb}"
 
-    def set_evmtp_hp_ul_rb_start(self, start: int) -> None:
+    def set_evmtp_hp_ul_rb_start(self, start: int) -> str:
         """Set EVM-TP high power UL starting RB."""
-        self.write(f"EVMTP_HP_ULRB_START {start}")
+        return f"EVMTP_HP_ULRB_START {start}"
 
-    def set_evmtp_lp_ul_rb(self, rb: int) -> None:
+    def set_evmtp_lp_ul_rb(self, rb: int) -> str:
         """Set EVM-TP low power UL RB."""
-        self.write(f"EVMTP_LP_ULRB {rb}")
+        return f"EVMTP_LP_ULRB {rb}"
 
-    def set_evmtp_lp_ul_rb_start(self, start: int) -> None:
+    def set_evmtp_lp_ul_rb_start(self, start: int) -> str:
         """Set EVM-TP low power starting RB."""
-        self.write(f"EVMTP_LP_ULRB_START {start}")
+        return f"EVMTP_LP_ULRB_START {start}"
 
     # =========================================================================
     # EIS (FR2 OTA) Settings
     # =========================================================================
-    def set_eis_level_step(self, step: float) -> None:
+    def set_eis_level_step(self, step: float) -> str:
         """Set EIS level step (dB)."""
-        self.write(f"EIS_LVLSTEP {step}")
+        return f"EIS_LVLSTEP {step}"
 
-    def set_eis_pol_switch_wait(self, wait_ms: int) -> None:
+    def set_eis_pol_switch_wait(self, wait_ms: int) -> str:
         """Set EIS polarization switch wait time (ms)."""
-        self.write(f"EIS_POLSWWAIT {wait_ms}")
+        return f"EIS_POLSWWAIT {wait_ms}"
 
-    def set_eis_wait(self, wait_ms: int) -> None:
+    def set_eis_wait(self, wait_ms: int) -> str:
         """Set EIS wait time (ms)."""
-        self.write(f"EIS_WAIT {wait_ms}")
+        return f"EIS_WAIT {wait_ms}"
 
     # =========================================================================
     # Measurement Execution
     # =========================================================================
-    def sweep(self) -> None:
+    def sweep(self) -> str:
         """Start measurement sweep (SWP) and wait for completion."""
-        self.write("SWP")
-        self.opc()
+        # Note: Consider adding *OPC? after this command.
+        return "SWP"
 
     def query_meas_status(self) -> str:
         """Query measurement status. Returns result of MSTAT?"""
-        return self.query("MSTAT?")
+        return "MSTAT?"
 
     # =========================================================================
     # Measurement Result Queries
     # =========================================================================
     def query_power(self) -> str:
         """Query UE output power result (dBm). POWER?"""
-        return self.query("POWER?")
+        return "POWER?"
 
     def query_channel_power(self, *args) -> str:
         """Query channel power. CHPWR? [args]"""
         cmd = "CHPWR?"
         if args:
             cmd += " " + ",".join(str(a) for a in args)
-        return self.query(cmd)
+        return cmd
 
     def query_mod_power(self) -> str:
         """Query modulation power result. MODPWR?"""
-        return self.query("MODPWR?")
+        return "MODPWR?"
 
     def query_evm(self) -> str:
         """Query Error Vector Magnitude result. EVM?"""
-        return self.query("EVM?")
+        return "EVM?"
 
     def query_rs_evm(self) -> str:
         """Query RS-EVM result. RSEVM?"""
-        return self.query("RSEVM?")
+        return "RSEVM?"
 
     def query_tp_evm(self) -> str:
         """Query EVM with Transient Period result. TPEVM?"""
-        return self.query("TPEVM?")
+        return "TPEVM?"
 
     def query_carrier_freq_error(self) -> str:
         """Query Carrier Frequency Error result. CARRFERR?"""
-        return self.query("CARRFERR?")
+        return "CARRFERR?"
 
     def query_carrier_leakage(self) -> str:
         """Query Carrier Leakage result. CARRLEAK?"""
-        return self.query("CARRLEAK?")
+        return "CARRLEAK?"
 
     def query_obw(self) -> str:
         """Query Occupied Bandwidth result. OBW?"""
-        return self.query("OBW?")
+        return "OBW?"
 
     def query_on_power(self) -> str:
         """Query ON power result. ONPWR?"""
-        return self.query("ONPWR?")
+        return "ONPWR?"
 
     def query_off_power_before(self) -> str:
         """Query OFF power before result. OFFPWR_BEFORE?"""
-        return self.query("OFFPWR_BEFORE?")
+        return "OFFPWR_BEFORE?"
 
     def query_off_power_after(self) -> str:
         """Query OFF power after result. OFFPWR_AFTER?"""
-        return self.query("OFFPWR_AFTER?")
+        return "OFFPWR_AFTER?"
 
     def query_timing_alignment_error(self) -> str:
         """Query Timing Alignment Error result. TMGALIGNERR?"""
-        return self.query("TMGALIGNERR?")
+        return "TMGALIGNERR?"
 
     def query_spec_flatness(self, direction: str = "") -> str:
         """
@@ -1188,8 +1195,8 @@ class MT8000A(InstrumentBase):
         direction: '' | 'RP1' | 'RP2' | 'RP12' | 'RP21'
         """
         if direction:
-            return self.query(f"SPECFLAT_{direction}?")
-        return self.query("SPECFLAT?")
+            return f"SPECFLAT_{direction}?"
+        return "SPECFLAT?"
 
     # --- SEM Results ---
     def query_sem_pass(self, mode: str = "") -> str:
@@ -1197,21 +1204,21 @@ class MT8000A(InstrumentBase):
         cmd = "SEMPASS?"
         if mode:
             cmd += f" {mode}"
-        return self.query(cmd)
+        return cmd
 
     def query_ttl_worst_sem(self, mode: str = "") -> str:
         """Query total worst SEM result. TTL_WORST_SEM? [SUM]"""
         cmd = "TTL_WORST_SEM?"
         if mode:
             cmd += f" {mode}"
-        return self.query(cmd)
+        return cmd
 
     def query_ttl_worst_sem_level(self, mode: str = "") -> str:
         """Query total worst SEM level result. TTL_WORST_SEM_LV? [SUM]"""
         cmd = "TTL_WORST_SEM_LV?"
         if mode:
             cmd += f" {mode}"
-        return self.query(cmd)
+        return cmd
 
     # --- ACLR Results ---
     def query_aclr(self, *args) -> str:
@@ -1219,7 +1226,7 @@ class MT8000A(InstrumentBase):
         cmd = "ACLR?"
         if args:
             cmd += " " + ",".join(str(a) for a in args)
-        return self.query(cmd)
+        return cmd
 
     # --- In-Band Emission Results ---
     def query_inband_emission_general(self, *args) -> str:
@@ -1227,56 +1234,56 @@ class MT8000A(InstrumentBase):
         cmd = "INBANDE_GEN?"
         if args:
             cmd += " " + ",".join(str(a) for a in args)
-        return self.query(cmd)
+        return cmd
 
     def query_inband_emission_leakage(self, *args) -> str:
         """Query In-Band Emission leakage result. INBANDE_LEAK? [args]"""
         cmd = "INBANDE_LEAK?"
         if args:
             cmd += " " + ",".join(str(a) for a in args)
-        return self.query(cmd)
+        return cmd
 
     def query_inband_emission_margin(self, *args) -> str:
         """Query In-Band Emission margin result. INBANDE_MARG? [args]"""
         cmd = "INBANDE_MARG?"
         if args:
             cmd += " " + ",".join(str(a) for a in args)
-        return self.query(cmd)
+        return cmd
 
     def query_inband_emission_margin_eutra(self, *args) -> str:
         """Query In-Band Emission margin (EUTRA) result. INBANDE_MARG_EUTRA? [args]"""
         cmd = "INBANDE_MARG_EUTRA?"
         if args:
             cmd += " " + ",".join(str(a) for a in args)
-        return self.query(cmd)
+        return cmd
 
     # --- Power Control Tolerance Results ---
     def query_pct_power(self) -> str:
         """Query PCT (Power Control Tolerance) power result. PCTPWR?"""
-        return self.query("PCTPWR?")
+        return "PCTPWR?"
 
     def query_pct_power2(self) -> str:
         """Query PCT power result 2. PCTPWR2?"""
-        return self.query("PCTPWR2?")
+        return "PCTPWR2?"
 
     def query_pct_power_e1(self, mode: str = "") -> str:
         """Query PCT power E1. PCTPWRE1? [SUM]"""
         cmd = "PCTPWRE1?"
         if mode:
             cmd += f" {mode}"
-        return self.query(cmd)
+        return cmd
 
     def query_pct_power_e2(self) -> str:
         """Query PCT power E2. PCTPWRE2?"""
-        return self.query("PCTPWRE2?")
+        return "PCTPWRE2?"
 
     def query_pct_power_e3(self) -> str:
         """Query PCT power E3. PCTPWRE3?"""
-        return self.query("PCTPWRE3?")
+        return "PCTPWRE3?"
 
     def query_pct_rel(self) -> str:
         """Query PCT relative result. PCTREL?"""
-        return self.query("PCTREL?")
+        return "PCTREL?"
 
     # --- Throughput Results ---
     def query_throughput(self, per_cc: str = "", cc: str = "") -> str:
@@ -1290,68 +1297,68 @@ class MT8000A(InstrumentBase):
             cmd += f" {per_cc}"
             if cc:
                 cmd += f",{cc}"
-        return self.query(cmd)
+        return cmd
 
     def query_throughput_bler(self, cc: str = "") -> str:
         """Query Throughput BLER result."""
         cmd = "TPUT_BLER?"
         if cc:
             cmd += f" {cc}"
-        return self.query(cmd)
+        return cmd
 
     def query_throughput_bler_count(self, cc: str = "") -> str:
         """Query Throughput BLER count."""
         cmd = "TPUT_BLERCNT?"
         if cc:
             cmd += f" {cc}"
-        return self.query(cmd)
+        return cmd
 
     def query_throughput_bler_count_nack(self, cc: str = "") -> str:
         """Query Throughput BLER NACK count."""
         cmd = "TPUT_BLERCNTNACK?"
         if cc:
             cmd += f" {cc}"
-        return self.query(cmd)
+        return cmd
 
     def query_throughput_bler_count_dtx(self, cc: str = "") -> str:
         """Query Throughput BLER DTX count."""
         cmd = "TPUT_BLERCNTDTX?"
         if cc:
             cmd += f" {cc}"
-        return self.query(cmd)
+        return cmd
 
     def query_throughput_transport_block(self, cc: str = "") -> str:
         """Query Throughput Transport Block size."""
         cmd = "TPUT_TRANSBLOCK?"
         if cc:
             cmd += f" {cc}"
-        return self.query(cmd)
+        return cmd
 
     def query_throughput_total_fr1(self) -> str:
         """Query Throughput total FR1."""
-        return self.query("TPUT_TOTAL_FR1?")
+        return "TPUT_TOTAL_FR1?"
 
     def query_throughput_total_fr2(self) -> str:
         """Query Throughput total FR2."""
-        return self.query("TPUT_TOTAL_FR2?")
+        return "TPUT_TOTAL_FR2?"
 
     def query_throughput_bler_total_fr1(self) -> str:
         """Query Throughput BLER total FR1."""
-        return self.query("TPUT_BLER_TOTAL_FR1?")
+        return "TPUT_BLER_TOTAL_FR1?"
 
     # --- EIS Results (FR2 OTA) ---
     def query_eis(self) -> str:
         """Query EIS result (FR2). EIS?"""
-        return self.query("EIS?")
+        return "EIS?"
 
     def query_peak_eirp(self) -> str:
         """Query Peak EIRP result. PEAKEIRP?"""
-        return self.query("PEAKEIRP?")
+        return "PEAKEIRP?"
 
     # --- TTL/Modulation Power ---
     def query_ttl_mod_power(self) -> str:
         """Query total modulation power. TTL_MODPWR?"""
-        return self.query("TTL_MODPWR?")
+        return "TTL_MODPWR?"
 
     # --- Power Template Results ---
     def query_power_temp(self, *args) -> str:
@@ -1359,17 +1366,17 @@ class MT8000A(InstrumentBase):
         cmd = "PWRTEMP?"
         if args:
             cmd += " " + ",".join(str(a) for a in args)
-        return self.query(cmd)
+        return cmd
 
     def query_test_spec(self) -> str:
         """Query test specification. TEST_SPEC?"""
-        return self.query("TEST_SPEC?")
+        return "TEST_SPEC?"
 
 
 # =============================================================================
 # MT8821C (LTE) Command Extensions
 # =============================================================================
-class MT8821C(InstrumentBase):
+class MT8821C:
     """
     Anritsu MT8821C LTE anchor commands (used via REM_DEST 8821C).
 
@@ -1378,116 +1385,174 @@ class MT8821C(InstrumentBase):
     first, then use these commands through the same VISA resource.
     """
 
-    def preset(self) -> None:
-        """Initialize MT8821C parameters."""
-        self.write("PRESET")
-        self.opc()
+    # =========================================================================
+    # Self test write and query commands
+    # =========================================================================
+    
+    def __init__(self, visa_resource, timeout_ms: int = 10000):
+        """
+        Parameters
+        ----------
+        visa_resource : pyvisa.Resource
+            An opened VISA instrument resource (GPIB, TCPIP, etc.)
+        timeout_ms : int
+            Default command timeout in milliseconds.
+        """
+        self._inst = visa_resource
+        self._inst.timeout = timeout_ms
 
-    def set_call_processing(self, on_off: bool) -> None:
+    def write(self, cmd: str) -> None:
+        """Send a SCPI command."""
+        logger.debug("WRITE: %s", cmd)
+        self._inst.write(cmd)
+
+    def query(self, cmd: str) -> str:
+        """Send a query and return the response string."""
+        logger.debug("QUERY: %s", cmd)
+        resp = self._inst.query(cmd).strip()
+        logger.debug("RESP:  %s", resp)
+        return resp
+
+    def close(self) -> None:  
+        """Close the VISA resource."""
+        self._inst.close()
+
+    def preset(self) -> str:
+        """Initialize MT8821C parameters. PRESET"""
+        # Note: Consider adding *OPC? after this command.
+        return "PRESET"
+
+    def set_call_processing(self, on_off: bool) -> str:
         """Enable/disable LTE call processing."""
-        self.write(f"CALLPROC {'ON' if on_off else 'OFF'}")
+        return f"CALLPROC {'ON' if on_off else 'OFF'}"
 
-    def set_band(self, band: int) -> None:
+    def set_band(self, band: int) -> str:
         """Set LTE operation band. e.g. BAND 5"""
-        self.write(f"BAND {band}")
+        return f"BAND {band}"
 
-    def set_bandwidth(self, bw: str) -> None:
+    def set_bandwidth(self, bw: str) -> str:
         """Set LTE channel bandwidth. e.g. BANDWIDTH 5MHZ"""
-        self.write(f"BANDWIDTH {bw}")
+        return f"BANDWIDTH {bw}"
 
-    def set_ul_channel(self, channel: int) -> None:
+    def set_ul_channel(self, channel: int) -> str:
         """Set LTE UL channel. e.g. ULCHAN 18300"""
-        self.write(f"ULCHAN {channel}")
+        return f"ULCHAN {channel}"
 
-    def set_frame_type(self, mode: str) -> None:
+    def set_frame_type(self, mode: str) -> str:
         """Set LTE duplex mode. e.g. FRAMETYPE FDD"""
-        self.write(f"FRAMETYPE {mode}")
+        return f"FRAMETYPE {mode}"
 
-    def set_sim_model(self, model: str) -> None:
+    def set_sim_model(self, model: str) -> str:
         """Set SIM model number for LTE. e.g. SIMMODELNUM P0250"""
-        self.write(f"SIMMODELNUM {model}")
+        return f"SIMMODELNUM {model}"
 
-    def set_integrity(self, algorithm: str) -> None:
+    def set_integrity(self, algorithm: str) -> str:
         """Set integrity protection. e.g. INTEGRITY SNOW3G"""
-        self.write(f"INTEGRITY {algorithm}")
+        return f"INTEGRITY {algorithm}"
 
-    def set_channel_coding(self, mode: str) -> None:
+    def set_channel_coding(self, mode: str) -> str:
         """Set channel coding. e.g. CHCODING RMC"""
-        self.write(f"CHCODING {mode}")
+        return f"CHCODING {mode}"
 
-    def set_routing_mode(self, mode: str) -> None:
+    def set_routing_mode(self, mode: str) -> str:
         """Set routing mode. e.g. TXIQROUTING SISO"""
-        self.write(f"TXIQROUTING {mode}")
+        return f"TXIQROUTING {mode}"
 
-    def set_ul_rmc_rb(self, rb: int) -> None:
+    def set_ul_rmc_rb(self, rb: int) -> str:
         """Set LTE UL RMC RB. e.g. ULRMC_RB 18"""
-        self.write(f"ULRMC_RB {rb}")
+        return f"ULRMC_RB {rb}"
 
-    def set_ul_rb_start(self, start: int) -> None:
+    def set_ul_rb_start(self, start: int) -> str:
         """Set LTE UL Starting RB. e.g. ULRBSTART 82"""
-        self.write(f"ULRBSTART {start}")
+        return f"ULRBSTART {start}"
 
-    def set_ul_rmc_mod(self, mod: str) -> None:
+    def set_ul_rmc_mod(self, mod: str) -> str:
         """Set LTE UL RMC Modulation. e.g. ULRMC_MOD QPSK"""
-        self.write(f"ULRMC_MOD {mod}")
+        return f"ULRMC_MOD {mod}"
 
-    def set_dl_rmc_rb(self, rb: int) -> None:
+    def set_dl_rmc_rb(self, rb: int) -> str:
         """Set LTE DL RMC RB."""
-        self.write(f"DLRMC_RB {rb}")
+        return f"DLRMC_RB {rb}"
 
-    def set_dl_rb_start(self, start: int) -> None:
+    def set_dl_rb_start(self, start: int) -> str:
         """Set LTE DL Starting RB."""
-        self.write(f"DLRB_START {start}")
+        return f"DLRB_START {start}"
 
-    def set_input_level(self, level: float) -> None:
+    def set_input_level(self, level: float) -> str:
         """Set LTE input level (dBm)."""
-        self.write(f"ILVL {level}")
+        return f"ILVL {level}"
 
-    def set_output_level_epre(self, level: float) -> None:
+    def set_output_level_epre(self, level: float) -> str:
         """Set LTE output level EPRE."""
-        self.write(f"OLVL_EPRE {level}")
+        return f"OLVL_EPRE {level}"
 
-    def set_tpc_pattern(self, pattern: str) -> None:
+    def set_tpc_pattern(self, pattern: str) -> str:
         """Set LTE TPC pattern."""
-        self.write(f"TPCPAT {pattern}")
+        return f"TPCPAT {pattern}"
 
-    def set_max_ul_power(self, power: float) -> None:
+    def set_max_ul_power(self, power: float) -> str:
         """Set LTE max UL power."""
-        self.write(f"MAXULPWR {power}")
+        return f"MAXULPWR {power}"
 
-    def call_sa(self) -> None:
-        """Initiate LTE call."""
-        self.write("CALLSA")
+    def call_sa(self) -> str:
+        """Initiate LTE call. CALLSA"""
+        return "CALLSA"
 
     def query_call_status(self) -> str:
-        """Query LTE call status."""
-        return self.query("CALLSTAT?")
+        """Query LTE call status. CALLSTAT?"""
+        return "CALLSTAT?"
 
     def query_power(self) -> str:
-        """Query LTE power result."""
-        return self.query("POWER?")
+        """Query LTE power result. POWER?"""
+        return "POWER?"
 
-    def all_meas_items_off(self) -> None:
-        """Turn off all LTE measurement items."""
-        self.write("ALLMEASITEMS_OFF")
-        self.opc()
+    def all_meas_items_off(self) -> str:
+        """Turn off all LTE measurement items. ALLMEASITEMS_OFF"""
+        # Note: Consider adding *OPC? after this command.
+        return "ALLMEASITEMS_OFF"
 
-    def set_power_meas(self, on: bool) -> None:
+    def set_power_meas(self, on: bool) -> str:
         """Enable/disable LTE power measurement."""
-        self.write(f"PWR_MEAS {'ON' if on else 'OFF'}")
+        return f"PWR_MEAS {'ON' if on else 'OFF'}"
 
-    def set_throughput_meas(self, on: bool) -> None:
+    def set_throughput_meas(self, on: bool) -> str:
         """Enable/disable LTE throughput measurement."""
-        self.write(f"TPUT_MEAS {'ON' if on else 'OFF'}")
+        return f"TPUT_MEAS {'ON' if on else 'OFF'}"
 
-    def sweep(self) -> None:
-        """Start LTE measurement sweep."""
-        self.write("SWP")
-        self.opc()
+    def sweep(self) -> str:
+        """Start LTE measurement sweep. SWP"""
+        # Note: Consider adding *OPC? after this command.
+        return "SWP"
 
     def query_meas_status(self) -> str:
-        """Query LTE measurement status."""
-        return self.query("MSTAT?")
+        """Query LTE measurement status. MSTAT?"""
+        return "MSTAT?"
+
+    def wait_for_call_connected(self, timeout_s: int = 60) -> bool:
+        """
+        Wait for LTE call to be connected.
+
+        Args:
+            timeout_s: Timeout in seconds
+
+        Returns:
+            True if call connected, False if timeout
+        """
+        import time
+        import logging
+
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+
+        while time.time() - start_time < timeout_s:
+            status = self.query_call_status()
+            if "CONNECTED" in status.upper():
+                logger.info("LTE call connected")
+                return True
+            time.sleep(1)
+
+        logger.warning(f"LTE call connection timeout after {timeout_s}s")
+        return False
 
 
 # =============================================================================
@@ -1503,70 +1568,70 @@ def example_sa_power_measurement(visa_resource) -> dict:
     mt = MT8000A(visa_resource)
 
     # --- System Initialization ---
-    mt.preset_sa()
-    mt.set_ran_operation("SA")
-    mt.set_test_interface("SLOT1", "ARGV")
-    mt.set_test_slot("SLOT1")
-    mt.set_call_processing(True)
-    mt.set_sim_model("P0135")
-    mt.set_integrity("SNOW3G")
+    visa_resource.write(mt.preset_sa())
+    visa_resource.write(mt.set_ran_operation("SA"))
+    visa_resource.write(mt.set_test_interface("SLOT1", "ARGV"))
+    visa_resource.write(mt.set_test_slot("SLOT1"))
+    visa_resource.write(mt.set_call_processing(True))
+    visa_resource.write(mt.set_sim_model("P0135"))
+    visa_resource.write(mt.set_integrity("SNOW3G"))
 
     # --- Frame & Frequency Configuration ---
-    mt.set_frame_type("TDD")
-    mt.set_channel_setting_mode("LOWESTGSCN")
-    mt.set_band("PCC", 78)
-    mt.set_dl_scs("PCC", "30KHZ")
-    mt.set_dl_bandwidth("PCC", "100MHZ")
-    mt.set_dl_channel("PCC", 623334)
-    mt.set_offset_carrier("PCC", 0)
-    mt.set_ssb_channel("PCC", 620352)
-    mt.set_ssb_scs("PCC", "30KHZ")
+    visa_resource.write(mt.set_frame_type("TDD"))
+    visa_resource.write(mt.set_channel_setting_mode("LOWESTGSCN"))
+    visa_resource.write(mt.set_band("PCC", 78))
+    visa_resource.write(mt.set_dl_scs("PCC", "30KHZ"))
+    visa_resource.write(mt.set_dl_bandwidth("PCC", "100MHZ"))
+    visa_resource.write(mt.set_dl_channel("PCC", 623334))
+    visa_resource.write(mt.set_offset_carrier("PCC", 0))
+    visa_resource.write(mt.set_ssb_channel("PCC", 620352))
+    visa_resource.write(mt.set_ssb_scs("PCC", "30KHZ"))
 
     # --- TDD Configuration ---
-    mt.set_dl_ul_period("PCC", "5MS")
-    mt.set_dl_duration("PCC", 8)
-    mt.set_ul_duration("PCC", 2)
-    mt.set_dl_symbols("PCC", 6)
-    mt.set_ul_symbols("PCC", 4)
+    visa_resource.write(mt.set_dl_ul_period("PCC", "5MS"))
+    visa_resource.write(mt.set_dl_duration("PCC", 8))
+    visa_resource.write(mt.set_ul_duration("PCC", 2))
+    visa_resource.write(mt.set_dl_symbols("PCC", 6))
+    visa_resource.write(mt.set_ul_symbols("PCC", 4))
 
     # --- DCI Configuration ---
-    mt.set_dci_format("FORMAT0_1_AND_1_1")
-    mt.set_scheduling("STATIC")
-    mt.set_group_hopping_cch("ENABLE")
+    visa_resource.write(mt.set_dci_format("FORMAT0_1_AND_1_1"))
+    visa_resource.write(mt.set_scheduling("STATIC"))
+    visa_resource.write(mt.set_group_hopping_cch("ENABLE"))
 
     # --- Call Connection ---
-    mt.call_sa()
+    visa_resource.write(mt.call_sa())
     connected = mt.wait_for_call_connected(timeout_s=60)
     if not connected:
         raise RuntimeError("Call connection failed")
 
     # --- Measurement Configuration ---
-    mt.all_meas_items_off()
-    mt.set_power_meas(True, avg=1)
+    visa_resource.write(mt.all_meas_items_off())
+    visa_resource.write(mt.set_power_meas(True, avg=1))
 
     # --- UL RMC Settings ---
-    mt.set_ul_waveform("PCC", "DFTOFDM")
-    mt.set_ul_rmc_rb("PCC", 162)
-    mt.set_ul_rb_start("PCC", 0)
-    mt.set_ul_mcs_index("PCC", 10)
+    visa_resource.write(mt.set_ul_waveform("PCC", "DFTOFDM"))
+    visa_resource.write(mt.set_ul_rmc_rb("PCC", 162))
+    visa_resource.write(mt.set_ul_rb_start("PCC", 0))
+    visa_resource.write(mt.set_ul_mcs_index("PCC", 10))
 
     # --- DL RMC Settings ---
-    mt.set_dl_rmc_rb("PCC", 0)
-    mt.set_dl_rb_start("PCC", 0)
-    mt.set_dl_mcs_table("PCC", "64QAM")
-    mt.set_dl_mcs_index("PCC", 4)
+    visa_resource.write(mt.set_dl_rmc_rb("PCC", 0))
+    visa_resource.write(mt.set_dl_rb_start("PCC", 0))
+    visa_resource.write(mt.set_dl_mcs_table("PCC", "64QAM"))
+    visa_resource.write(mt.set_dl_mcs_index("PCC", 4))
 
     # --- Input Level & TPC ---
-    mt.set_input_level("PCC", 23)
-    mt.set_tpc_pattern("ALL3")
+    visa_resource.write(mt.set_input_level("PCC", 23))
+    visa_resource.write(mt.set_tpc_pattern("ALL3"))
 
     # --- Execute Measurement ---
-    mt.sweep()
-    status = mt.query_meas_status()
-    power = mt.query_power()
+    visa_resource.write(mt.sweep())
+    status = visa_resource.query(mt.query_meas_status())
+    power = visa_resource.query(mt.query_power())
 
     # --- Reset ---
-    mt.set_tpc_pattern("AUTO")
+    visa_resource.write(mt.set_tpc_pattern("AUTO"))
 
     return {
         "status": status,
@@ -1581,71 +1646,72 @@ def example_nsa_endc_evm_measurement(visa_resource) -> dict:
     Returns measurement results dict.
     """
     mt = MT8000A(visa_resource)
+    mt8821c = MT8821C()
 
     # --- Switch to LTE (MT8821C) for anchor config ---
-    mt.set_remote_destination("8821C")
-    MT8821C(mt._inst).preset()
-    MT8821C(mt._inst).set_call_processing(True)
-    MT8821C(mt._inst).set_band(41)
-    MT8821C(mt._inst).set_bandwidth("20MHZ")
-    MT8821C(mt._inst).set_sim_model("P0250")
-    MT8821C(mt._inst).set_integrity("SNOW3G")
+    visa_resource.write(mt.set_remote_destination("8821C"))
+    visa_resource.write(mt8821c.preset())
+    visa_resource.write(mt8821c.set_call_processing(True))
+    visa_resource.write(mt8821c.set_band(41))
+    visa_resource.write(mt8821c.set_bandwidth("20MHZ"))
+    visa_resource.write(mt8821c.set_sim_model("P0250"))
+    visa_resource.write(mt8821c.set_integrity("SNOW3G"))
 
     # --- Switch back to NR ---
-    mt.set_remote_destination("8000A")
+    visa_resource.write(mt.set_remote_destination("8000A"))
 
     # --- NR Frame & Frequency ---
-    mt.set_frame_type("TDD")
-    mt.set_band("PCC", 41)
-    mt.set_dl_scs("PCC", "30KHZ")
-    mt.set_dl_bandwidth("PCC", "100MHZ")
-    mt.set_dl_channel("PCC", 509202)
-    mt.set_offset_carrier("PCC", 0)
-    mt.set_channel_setting_mode("LOWESTGSCN")
-    mt.set_ssb_channel("PCC", 500190)
-    mt.set_ssb_scs("PCC", "30KHZ")
+    visa_resource.write(mt.set_frame_type("TDD"))
+    visa_resource.write(mt.set_band("PCC", 41))
+    visa_resource.write(mt.set_dl_scs("PCC", "30KHZ"))
+    visa_resource.write(mt.set_dl_bandwidth("PCC", "100MHZ"))
+    visa_resource.write(mt.set_dl_channel("PCC", 509202))
+    visa_resource.write(mt.set_offset_carrier("PCC", 0))
+    visa_resource.write(mt.set_channel_setting_mode("LOWESTGSCN"))
+    visa_resource.write(mt.set_ssb_channel("PCC", 500190))
+    visa_resource.write(mt.set_ssb_scs("PCC", "30KHZ"))
 
     # --- TDD Configuration ---
-    mt.set_dl_ul_period("PCC", "5MS")
-    mt.set_dl_duration("PCC", 8)
-    mt.set_ul_duration("PCC", 2)
-    mt.set_dl_symbols("PCC", 6)
-    mt.set_ul_symbols("PCC", 4)
+    visa_resource.write(mt.set_dl_ul_period("PCC", "5MS"))
+    visa_resource.write(mt.set_dl_duration("PCC", 8))
+    visa_resource.write(mt.set_ul_duration("PCC", 2))
+    visa_resource.write(mt.set_dl_symbols("PCC", 6))
+    visa_resource.write(mt.set_ul_symbols("PCC", 4))
 
     # --- EN-DC Measurement Mode ---
-    mt.set_endc_meas_mode("NR")
+    visa_resource.write(mt.set_endc_meas_mode("NR"))
 
     # --- Call Connection (LTE then NR) ---
-    mt.set_remote_destination("8821C")
-    MT8821C(mt._inst).call_sa()
-    mt.set_remote_destination("8000A")
-    mt.call_sa()
+    visa_resource.write(mt.set_remote_destination("8821C"))
+    visa_resource.write(mt8821c.call_sa())
+    visa_resource.write(mt.set_remote_destination("8000A"))
+    visa_resource.write(mt.call_sa())
     connected = mt.wait_for_call_connected(timeout_s=60)
     if not connected:
         raise RuntimeError("NR call connection failed")
 
     # --- Measurement Configuration ---
-    mt.all_meas_items_off()
-    mt.set_mod_meas(True, avg=20)
+    visa_resource.write(mt.all_meas_items_off())
+    visa_resource.write(mt.set_mod_meas(True, avg=20))
 
     # --- UL RMC Settings ---
-    mt.set_ul_waveform("PCC", "DFTOFDM")
-    mt.set_ul_rmc_rb("PCC", 162)
-    mt.set_ul_rb_start("PCC", 0)
-    mt.set_ul_mcs_index("PCC", 2)
+    visa_resource.write(mt.set_ul_waveform("PCC", "DFTOFDM"))
+    visa_resource.write(mt.set_ul_rmc_rb("PCC", 162))
+    visa_resource.write(mt.set_ul_rb_start("PCC", 0))
+    visa_resource.write(mt.set_ul_mcs_index("PCC", 2))
 
     # --- Level & TPC ---
-    mt.set_input_level("PCC", 23)
-    mt.set_tpc_pattern("ALL3")
+    visa_resource.write(mt.set_input_level("PCC", 23))
+    visa_resource.write(mt.set_tpc_pattern("ALL3"))
 
     # --- Execute Measurement ---
-    mt.sweep()
-    status = mt.query_meas_status()
-    evm = mt.query_evm()
-    carrier_leakage = mt.query_carrier_leakage()
+    visa_resource.write(mt.sweep())
+    status = visa_resource.query(mt.query_meas_status())
+    evm = visa_resource.query(mt.query_evm())
+    carrier_leakage = visa_resource.query(mt.query_carrier_leakage())
 
     # --- Reset ---
-    mt.set_tpc_pattern("AUTO")
+    visa_resource.write(mt.set_tpc_pattern("AUTO"))
 
     return {
         "status": status,
@@ -1665,33 +1731,33 @@ def example_rx_throughput_measurement(visa_resource) -> dict:
     # Assume system already initialized & call connected
 
     # --- Measurement Configuration ---
-    mt.all_meas_items_off()
-    mt.set_throughput_meas(True)
-    mt.set_throughput_sample(2466)
-    mt.set_early_decision(True)
+    visa_resource.write(mt.all_meas_items_off())
+    visa_resource.write(mt.set_throughput_meas(True))
+    visa_resource.write(mt.set_throughput_sample(2466))
+    visa_resource.write(mt.set_early_decision(True))
 
     # --- DL RMC Settings ---
-    mt.set_dl_rmc_rb("PCC", 133)
-    mt.set_dl_mcs_table("PCC", "64QAM")
-    mt.set_dl_mcs_index("PCC", 4)
-    mt.set_avoid_csirs_for_ref_sens("PCC", "ON")
+    visa_resource.write(mt.set_dl_rmc_rb("PCC", 133))
+    visa_resource.write(mt.set_dl_mcs_table("PCC", "64QAM"))
+    visa_resource.write(mt.set_dl_mcs_index("PCC", 4))
+    visa_resource.write(mt.set_avoid_csirs_for_ref_sens("PCC", "ON"))
 
     # --- Output Level (Reference Sensitivity) ---
-    mt.set_output_level("PCC", -88.1)
+    visa_resource.write(mt.set_output_level("PCC", -88.1))
 
     # --- Input Level & TPC ---
-    mt.set_input_level("PCC", 23)
-    mt.set_tpc_pattern("ALL3")
+    visa_resource.write(mt.set_input_level("PCC", 23))
+    visa_resource.write(mt.set_tpc_pattern("ALL3"))
 
     # --- Execute Measurement ---
-    mt.sweep()
-    status = mt.query_meas_status()
-    throughput = mt.query_throughput("PER")
+    visa_resource.write(mt.sweep())
+    status = visa_resource.query(mt.query_meas_status())
+    throughput = visa_resource.query(mt.query_throughput("PER"))
 
     # --- Reset ---
-    mt.set_tpc_pattern("AUTO")
-    mt.set_early_decision("OFF")
-    mt.set_avoid_csirs_for_ref_sens("PCC", "OFF")
+    visa_resource.write(mt.set_tpc_pattern("AUTO"))
+    visa_resource.write(mt.set_early_decision("OFF"))
+    visa_resource.write(mt.set_avoid_csirs_for_ref_sens("PCC", "OFF"))
 
     return {
         "status": status,
@@ -1708,16 +1774,16 @@ if __name__ == "__main__":
     print()
     print("  rm = pyvisa.ResourceManager()")
     print("  inst = rm.open_resource('GPIB0::1::INSTR')")
-    print("  mt = MT8000A(inst)")
+    print("  mt = MT8000A()")
     print()
     print("  # Set band and frequency")
-    print("  mt.set_band('PCC', 78)")
-    print("  mt.set_dl_scs('PCC', '30KHZ')")
-    print("  mt.set_dl_bandwidth('PCC', '100MHZ')")
+    print("  inst.write(mt.set_band('PCC', 78))")
+    print("  inst.write(mt.set_dl_scs('PCC', '30KHZ'))")
+    print("  inst.write(mt.set_dl_bandwidth('PCC', '100MHZ'))")
     print()
     print("  # Run power measurement")
-    print("  mt.all_meas_items_off()")
-    print("  mt.set_power_meas(True, avg=1)")
-    print("  mt.sweep()")
-    print("  result = mt.query_power()")
+    print("  inst.write(mt.all_meas_items_off())")
+    print("  inst.write(mt.set_power_meas(True, avg=1))")
+    print("  inst.write(mt.sweep())")
+    print("  result = inst.query(mt.query_power())")
     print("  print(f'Power: {result} dBm')")
